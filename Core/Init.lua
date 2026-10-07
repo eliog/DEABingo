@@ -500,7 +500,12 @@ function App.tick()
   App.net:tick()
   -- Silent rejoin after a reload: as soon as the card is heard, ask for the same board back.
   for gid in pairs(App.rejoin) do
-    if App.mirror.cards[gid] and not App.mirror.games[gid] then
+    local card = App.mirror.cards[gid]
+    if card and card.state == "closed" then
+      -- it ended while we were away: nothing to rejoin
+      App.rejoin[gid] = nil
+      App.store:saveJoined(gid, nil)
+    elseif card and not App.mirror.games[gid] then
       App.mirror:join(gid)
       App.rejoin[gid] = nil
       App.current = App.current or gid

@@ -386,6 +386,35 @@ describe("items", function()
   end)
 end)
 
+describe("closing", function()
+  it("tells lobbies that never joined, answers late hellos, and expires the card", function()
+    local hub, host, owner, names = guildNight(2)
+    local bystander = hub:addClient("Bystander-Pagle", { guild = "DEA", group = "raid1" })
+    bystander.mirror:hello(); hub:flush()
+    local gid = host.record.gid
+    assert.are.equal("open", bystander.mirror.cards[gid].state)
+    assert.is_true(host:close()); hub:flush()
+    assert.are.equal("closed", bystander.mirror.cards[gid].state)
+    assert.are.equal(0, #bystander.mirror:openGames())
+    -- a hello within half an hour still learns the game is closed
+    local late = hub:addClient("Late-Pagle", { guild = "DEA", group = "raid1" })
+    late.mirror:hello(); hub:flush()
+    assert.are.equal("closed", late.mirror.cards[gid].state)
+    -- and the card disappears from the lobby after the expiry
+    hub.time = hub.time + Mirror.CARD_EXPIRY + 1
+    hub:advance(1)
+    assert.is_nil(bystander.mirror.cards[gid])
+  end)
+
+  it("closing a draft sends nothing", function()
+    local hub = Hub.new()
+    local c = hub:addClient("Owner-Pagle", { guild = "DEA", group = "raid1" })
+    local host = c:host({ title = "Draft", items = items(), audience = "G" })
+    assert.is_true(host:close())
+    assert.are.equal(0, #c.sent)
+  end)
+end)
+
 describe("wire times", function()
   it("replaces an absurd call time with the local clock", function()
     local hub, host, owner, names = guildNight(2)

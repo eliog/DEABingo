@@ -33,6 +33,7 @@ Host.SYNC_DELAY = 2            -- collect SQ requests this long, then answer onc
 Host.SYNC_COOLDOWN = 3         -- per requester; a missed call must not wait long
 Host.MAX_PLAYERS = 120         -- a snapshot of more would not fit the wire budget
 Host.SNAPSHOT_ROWS = 40        -- roster rows per snapshot part
+Host.CLOSED_ANSWERS = 1800     -- a closed game still answers hellos this long
 
 local DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
 local function base36(n)
@@ -174,14 +175,16 @@ function Host:open()
   return true
 end
 
-function Host:close()
+function Host:close(at)
   local r = self.record
   if r.state == "closed" then return nil, "already closed" end
-  local now = self.deps.now()
+  local wasOpen = r.state == "open"
+  local now = at or self.deps.now()
   r.state = "closed"
   r.closedAt = now
-  if r.state ~= "drafting" then
+  if wasOpen then
     self:emit("CX", { seq = self:bump(), closedAt = now })
+    self:heartbeat()   -- one last card, so lobbies that never joined see it closed
   end
   self:persist()
   if self.deps.onEvent then self.deps.onEvent("close", { gid = r.gid }) end
@@ -200,6 +203,8 @@ end
 
 function Host:heartbeat(target)
   if self.record.state == "drafting" then return end
+  -- a closed game answers hellos for a while, then falls silent
+  if self.record.state == "closed" and not target and self.record.lastHeartbeat > (self.record.closedAt or 0) then return end
   self:emit("GA", self:card(), target and "WHISPER" or nil, target)
   if not target then self.record.lastHeartbeat = self.deps.now() end
 end
@@ -377,7 +382,9 @@ function Host:handle(msg, sender)
   if not r or r.state == "drafting" then return end
   local t, f = msg.type, msg.f
   if t == "HI" then
-    if r.state == "open" then self:heartbeat(sender) end
+    if r.state == "open" or (r.state == "closed" and self.deps.now() - (r.closedAt or 0) < Host.CLOSED_ANSWERS) then
+      self:heartbeat(sender)
+    end
   elseif t == "JN" then
     if r.state ~= "open" then return end
     if not self.deps.isMember(sender, r.audience) then self:log("join refused, not a member: " .. sender); return end

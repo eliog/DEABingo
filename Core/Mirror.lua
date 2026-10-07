@@ -36,6 +36,7 @@ Mirror.MAX_PENDING = 64      -- buffered out-of-order deltas per game
 Mirror.MAX_EVENTS = 200      -- timeline entries kept per game
 Mirror.REQUEST_TIMEOUT = 5   -- seconds a call request may stay unanswered before it is reported lost
 Mirror.TIME_SKEW = 86400     -- a wire time further than this from now is replaced by now
+Mirror.CARD_EXPIRY = 1800    -- cards away or closed this long are dropped from the lobby
 Mirror.HELLO_GID = "0"
 
 local SEQUENCED = { JD = true, CL = true, UN = true, GR = true, TI = true, CX = true, TR = true }
@@ -436,9 +437,15 @@ end
 function Mirror:tick()
   local now = self.deps.now()
   local changed = false
-  for _, card in pairs(self.cards) do
+  for gid, card in pairs(self.cards) do
     local away = (now - card.seen) > Mirror.CARD_TTL
     if away ~= card.away then card.away = away; changed = true end
+    -- a long-silent or long-closed card is history, not a lobby entry
+    local joined = self.games[gid] and self.games[gid].joined
+    if (now - card.seen) > Mirror.CARD_EXPIRY and not (joined and card.state == "open") then
+      self.cards[gid] = nil
+      changed = true
+    end
   end
   if changed and self.deps.onCards then self.deps.onCards() end
   for gid, g in pairs(self.games) do
