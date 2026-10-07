@@ -13,6 +13,9 @@ local Logic, Theme, W, Board, View = ns.Logic, ns.Theme, ns.W, ns.Board, ns.View
 local Window = {}
 ns.Window = Window
 
+-- Below this the 24 edit boxes of the setup grid shrink past legibility.
+Window.MIN_W, Window.MIN_H = 720, 560
+
 local RAIL = 290
 local PAD = 14
 local HEADER = 54
@@ -516,7 +519,7 @@ local function buildSetup(f)
   function s:LayoutGrid()
     local w, h = self.grid:GetWidth(), self.grid:GetHeight()
     if w < 100 or h < 100 then return end
-    local cols = w > 700 and 3 or 2
+    local cols = w > 640 and 3 or 2   -- three columns from the minimum width up, so rows stay tall
     local rows = math.ceil(Logic.ITEM_COUNT / cols)
     local rowH = math.min(26, math.floor(h / rows))
     local colW = math.floor(w / cols)
@@ -713,9 +716,9 @@ function Window.init(callbacks)
 
   win = CreateFrame("Frame", "DEABingoFrame", UIParent)
   win:SetFrameStrata("MEDIUM")
-  win:SetSize(860, 580)
+  win:SetSize(880, 620)
   win:SetResizable(true)
-  if win.SetResizeBounds then win:SetResizeBounds(700, 470) end
+  if win.SetResizeBounds then win:SetResizeBounds(Window.MIN_W, Window.MIN_H) end
   win.bg = W.rect(win, "bg"); win.bg:SetAllPoints()
   win.border = W.border(win, "lineStrong")
   win.shadow = win:CreateTexture(nil, "BACKGROUND", nil, -1)
@@ -745,7 +748,7 @@ function Window.init(callbacks)
   -- Manual sizing: the grip tracks the cursor itself, so the window grows
   -- only right and down from its pinned top-left, whatever it was anchored
   -- to and whatever the UI scale.
-  local MIN_W, MIN_H = 700, 470
+  local MIN_W, MIN_H = Window.MIN_W, Window.MIN_H
   win.grip:SetScript("OnMouseDown", function(self)
     local left, top = win:GetLeft(), win:GetTop()
     if left and top then

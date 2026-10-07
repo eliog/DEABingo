@@ -222,6 +222,13 @@ for _, c in ipairs(clients) do
   st:OpenPaste(); st.pasteCard.card.edit:SetText("one\ntwo\nthree"); st.pasteCard.card.edit.__scripts.OnTextChanged(st.pasteCard.card.edit)
   st.pasteCard.card.use.__scripts.OnClick(st.pasteCard.card.use)
   assert(st.boxes[3].box:GetText() == "three", "paste did not fill the squares")
+  -- #20: the grid keeps legible rows at the minimum window height
+  Window.frame():SetSize(Window.MIN_W, Window.MIN_H)
+  st.grid.__h = Window.MIN_H - 54 - 32 - 44 - 190   -- roughly what the grid gets at the minimum
+  st.grid.__w = Window.MIN_W - 28
+  st:LayoutGrid()
+  assert(st.boxes[1].box.__h >= 20, "setup rows too small at the minimum size: " .. tostring(st.boxes[1].box.__h))
+  Window.frame():SetSize(880, 620)
   st:OpenPicker()
   local prow = st.pickerCard.card.list.rows[1]
   if prow and prow.set then prow.__scripts.OnClick(prow); assert(st.boxes[1].box:GetText() ~= "", "picker did not fill") end
