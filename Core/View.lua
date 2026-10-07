@@ -65,14 +65,14 @@ local function build(v, roster, calls, items, me)
     v.hasBingo = Logic.hasBingo(mine.board, called)
     v.winning = Logic.winningCells(mine.board, called)
     v.myBingoAt = mine.bingoAt
-    v.canCall = v.isHost or mine.canCall == true
+    v.canCall = (v.isHost or mine.canCall == true) and v.state == "open"
   else
     v.board = nil
     v.bestLine = 0
     v.hasBingo = false
     v.winning = {}
     v.myBingoAt = nil
-    v.canCall = v.isHost
+    v.canCall = v.isHost and v.state == "open"
   end
   v.away = v.bestLine >= 5 and 0 or (5 - v.bestLine)
   return v

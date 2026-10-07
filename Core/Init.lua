@@ -856,7 +856,7 @@ end
 
 local function callOrUndo(rest, undo)
   local n = tonumber(rest)
-  if not n or n < 1 or n > Logic.ITEM_COUNT then print_("usage: /dea " .. (undo and "undo" or "call") .. " <1-24>"); return end
+  if not n or n ~= math.floor(n) or n < 1 or n > Logic.ITEM_COUNT then print_("usage: /dea " .. (undo and "undo" or "call") .. " <1-24>"); return end
   local host, game = currentGame()
   if host then
     local result, err = undo and host:undo(n - 1) or host:call(n - 1)

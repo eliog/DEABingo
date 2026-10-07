@@ -136,6 +136,7 @@ end
 
 function Host:setItems(items)
   local r = self.record
+  if r.state == "closed" then return nil, "the game is closed" end
   if r.state ~= "drafting" and r.frozen then return nil, "items are frozen" end
   local check = Logic.checkItems(items)
   if not check.ok then return nil, "items are not valid" end
@@ -148,6 +149,7 @@ end
 
 function Host:setTitle(title)
   local r = self.record
+  if r.state == "closed" then return nil, "the game is closed" end
   local t = Logic.validateTitle(title)
   if not t.ok then return nil, t.reason end
   r.title = t.value
@@ -421,7 +423,7 @@ function Host:tick()
   if self.syncDue and now >= self.syncDue then self:flushSync() end
   if r.state == "open" then
     if now - r.lastActivity >= Host.IDLE_CLOSE then
-      self:close()
+      self:close(r.lastActivity + Host.IDLE_CLOSE)   -- closed when the night ended, not when we noticed
       return
     end
     if now - r.lastHeartbeat >= Host.HEARTBEAT then self:heartbeat() end
