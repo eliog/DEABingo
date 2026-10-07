@@ -695,7 +695,17 @@ function Window.init(callbacks)
   win.grip:SetScript("OnEnter", function(self) for _, t in ipairs(self.lines) do Theme.set(t, "gold") end end)
   win.grip:SetScript("OnLeave", function(self) for _, t in ipairs(self.lines) do Theme.set(t, "inkFaint") end end)
   W.tooltip(win.grip, function() return { "Drag to resize" } end)
-  win.grip:SetScript("OnMouseDown", function() win:StartSizing("BOTTOMRIGHT") end)
+  -- Sizing from a centre-anchored frame grows it in every direction at
+  -- once, so the corner leaps away. Pin the top-left where it is first.
+  win.grip:SetScript("OnMouseDown", function()
+    local left, top = win:GetLeft(), win:GetTop()
+    if left and top then
+      local scale = win:GetEffectiveScale() / UIParent:GetEffectiveScale()
+      win:ClearAllPoints()
+      win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left * scale, top * scale)
+    end
+    win:StartSizing("BOTTOMRIGHT")
+  end)
   win.grip:SetScript("OnMouseUp", function()
     win:StopMovingOrSizing()
     local point, _, relPoint, x, y = win:GetPoint(1)
