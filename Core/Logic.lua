@@ -299,6 +299,27 @@ function Logic.charNameKey(raw)
   return (Logic.normalizeCharName(raw):lower():gsub(" ", ""))
 end
 
+-- "Name-Realm" -> "Name". For comparisons only.
+function Logic.stripRealm(name)
+  if type(name) ~= "string" then return "" end
+  return (name:gsub("%-[^%-]+$", ""))
+end
+
+-- Do two name strings refer to the same character? Realm-blind and
+-- case-blind, and tolerant of a surname the client may or may not report:
+-- "Dea One-Realm" is the same character as "Dea One", "dea one" and "Dea".
+-- Used to decide whether a name the server stamps on our own message may
+-- replace what the client told us we are called.
+function Logic.sameCharacter(a, b)
+  local ka = Logic.charNameKey(Logic.stripRealm(a))
+  local kb = Logic.charNameKey(Logic.stripRealm(b))
+  if ka == "" or kb == "" then return false end
+  if ka == kb then return true end
+  local short, long = ka, kb
+  if #short > #long then short, long = long, short end
+  return long:sub(1, #short) == short
+end
+
 -- Escape sequences (|c, |H, |T, |A, |K, |n) render in any FontString. Every
 -- untrusted string passes through here before display or chat.
 function Logic.escape(s)

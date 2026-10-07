@@ -39,10 +39,16 @@ function Mirror.new(deps)
   self.games = {}        -- gid -> game
   self.joining = {}      -- gid -> when we asked to join
   self.saidNewer = false
-  -- Marks our own HI so its echo is recognisable. Drawn from the unit float:
-  -- the client's math.random(m, n) misbehaves for ranges this large.
-  self.nonce = math.floor(math.random() * 2147483647)
+  self.nonce = 0          -- marks our latest HI; fresh on every hello
+  self.helloAt = nil      -- when that HI went out
+  self.cqNonce = 0        -- counter for call requests
   return self
+end
+
+-- Drawn from the unit float: the client's math.random(m, n) misbehaves for
+-- ranges this large.
+local function freshNonce()
+  return math.floor(math.random() * 2147483647)
 end
 
 function Mirror:log(text)
@@ -63,6 +69,8 @@ end
 
 -- Ask every host around for its card. On login, reload and roster change.
 function Mirror:hello()
+  self.nonce = freshNonce()
+  self.helloAt = self.deps.now()
   for _, channel in ipairs(self.deps.channels()) do
     self:emit("HI", Mirror.HELLO_GID, { ver = Codec.PROTOCOL, nonce = self.nonce }, channel)
   end
@@ -136,8 +144,8 @@ function Mirror:requestCall(gid, idx, undo)
   if g.state ~= "open" then return nil, "that game is closed" end
   local st = self:myState(gid)
   if not st or not st.canCall then return nil, "you are not a caller" end
-  self.nonce = (self.nonce or 0) + 1
-  self:emit("CQ", gid, { idx = idx, undo = undo == true, nonce = self.nonce }, "WHISPER", g.owner)
+  self.cqNonce = self.cqNonce + 1
+  self:emit("CQ", gid, { idx = idx, undo = undo == true, nonce = self.cqNonce }, "WHISPER", g.owner)
   return true
 end
 

@@ -73,6 +73,13 @@ end
 function App.learnMe(name)
   local old = App.myName
   if name == old then return end
+  -- The nonce that marks our hello is public, so a replayed hello arrives
+  -- under a stranger's name. Only a name for THIS character may be learned.
+  local mine = displayName("player")
+  if not mine or not Logic.sameCharacter(name, mine) then
+    debug_(("refused to become %s (I am %s)"):format(tostring(name), tostring(mine)))
+    return
+  end
   App.myName = name
   realm = name:match("%-([^%-]+)$") or realm
   debug_(("the server calls me %s (was %s)"):format(name, tostring(old)))

@@ -5,6 +5,7 @@ local Logic = require("Core.Logic")
 local Codec = require("Core.Codec")
 local Host = require("Core.Host")
 local Mirror = require("Core.Mirror")
+local Net = require("Core.Net")
 local Hub = require("tests.hub")
 
 local function items()
@@ -494,6 +495,20 @@ describe("identity", function()
     hub.clients["Player1-Pagle"].mirror:hello()
     hub:flush()
     assert.are.equal("Dea One-Two", c.net.deps.me)
+    -- a replayed copy of our own hello under a stranger's name is refused
+    local replay = c.sent[1].payload
+    assert.is_truthy(replay:find("\31HI\31", 1, true))
+    hub.clients["Player1-Pagle"].net.deps.transport.send(replay, "GUILD")
+    hub:flush()
+    assert.are.equal("Dea One-Two", c.net.deps.me)
+    assert.are.equal("Player1-Pagle", c.refused)
+    -- and a genuine echo that arrives too late teaches nothing
+    local late = hub:addClient("Late One-Two", { guild = "DEA", group = "raid1", thinksItIs = "Late-One" })
+    late.mirror:hello()
+    hub:flush(function(m) return not m.payload:find("\31HI\31", 1, true) end)   -- echo lost for now
+    hub.time = hub.time + Net.ECHO_WINDOW + 1
+    late.net:onMessage(late.sent[1].payload, "GUILD", "Late One-Two")
+    assert.are.equal("Late-One", late.net.deps.me)
     -- joining a game now keys the roster by the real name
     local host = hub.clients["Player1-Pagle"]:host({ title = "Tuesday MC", items = items(), audience = "G" })
     host:open(); hub:flush()

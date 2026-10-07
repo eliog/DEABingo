@@ -166,6 +166,17 @@ describe("text", function()
     assert.are.equal("ab", Logic.cleanText("a\226\128b"))   -- truncated sequence
   end)
 
+  it("recognises the same character across realm, case and surname forms", function()
+    assert.is_true(Logic.sameCharacter("Dea One-ClassicBetaPvE2", "Dea One"))
+    assert.is_true(Logic.sameCharacter("dea one", "Dea One-Two"))
+    assert.is_true(Logic.sameCharacter("Dea One", "Dea"))          -- client reported the first name only
+    assert.is_true(Logic.sameCharacter("Thalgrim-Pagle", "Thalgrim"))
+    assert.is_false(Logic.sameCharacter("Dea Two", "Dea One"))
+    assert.is_false(Logic.sameCharacter("Impostor-Pagle", "Dea One"))
+    assert.is_false(Logic.sameCharacter("", "Dea One"))
+    assert.is_false(Logic.sameCharacter(nil, "Dea One"))
+  end)
+
   it("escapes the pipe so chat and FontStrings cannot be hijacked", function()
     assert.are.equal("||cff00ff00fake||r", Logic.escape("|cff00ff00fake|r"))
     assert.are.equal("||Hitem:1||h[x]||h", Logic.escape("|Hitem:1|h[x]|h"))

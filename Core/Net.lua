@@ -28,6 +28,7 @@ Net.__index = Net
 ns.Net = Net
 
 Net.PREFIX = "DEABINGO"
+Net.ECHO_WINDOW = 5     -- seconds after a hello during which its echo may teach us our name
 
 local PRIORITY = { CL = "ALERT", UN = "ALERT", CQ = "ALERT", IT = "BULK", SN = "BULK" }
 local HOST_BOUND = { JN = true, CQ = true, IQ = true, SQ = true, NV = true }
@@ -129,11 +130,15 @@ function Net:dispatch(payload, channel, sender)
   if type(sender) ~= "string" or sender == self.deps.me then return end
   if not Codec.isName(sender) then self.stats.dropped = self.stats.dropped + 1; return end
   -- Our own HI coming back with our nonce: that sender string is what the
-  -- server calls us, whatever the client's name functions say.
-  if self.mirror and payload:find("\31HI\31", 1, true) then
+  -- server calls us, whatever the client's name functions say. Only within
+  -- a few seconds of sending it, and the nonce is public, so deps.learnMe
+  -- must still refuse any name that is not plausibly this character.
+  if self.mirror and self.mirror.helloAt and payload:find("\31HI\31", 1, true) then
     local echo = Codec.decode(payload)
     if echo and echo.type == "HI" and echo.f.nonce == self.mirror.nonce then
-      if self.deps.learnMe then self.deps.learnMe(sender) end
+      if self.deps.now() - self.mirror.helloAt <= Net.ECHO_WINDOW and self.deps.learnMe then
+        self.deps.learnMe(sender)
+      end
       return
     end
   end
