@@ -76,12 +76,14 @@ function Chip.applyOptions(o)
   if not chip then return end
   chip.locked = o.chipLocked == true
   chip.hidden = o.chipHidden == true
-  if chip.hidden then chip:Hide() end
+  -- redraw from the last state so un-hiding brings it straight back
+  Chip.update(chip.lastView)
 end
 
 -- v is the view model, or nil to hide.
 function Chip.update(v)
   if not chip then return end
+  chip.lastView = v
   if chip.hidden or not v or v.state ~= "open" or not v.board then chip:Hide(); return end
   chip:Show()
   chip.title:SetText(Logic.escape(v.title):upper())
