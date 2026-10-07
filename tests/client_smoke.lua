@@ -247,6 +247,15 @@ for _, c in ipairs(clients) do
   Window.show("setup"); Window.refresh()
   local st = Window.frame().views.setup
   st:OpenPaste(); st.pasteCard.card.edit:SetText("one\ntwo\nthree"); st.pasteCard.card.edit.__scripts.OnTextChanged(st.pasteCard.card.edit)
+  -- #23: the cursor-follow handler scrolls a cursor below the visible area into view
+  do
+    local box, ed = st.pasteCard.card.box, st.pasteCard.card.edit
+    box.__h = 100
+    ed.__scripts.OnCursorChanged(ed, 0, -400, 10, 16)   -- cursor 400 px down, 16 px tall
+    assert(box:GetVerticalScroll() == 316, "cursor not scrolled into view: " .. tostring(box:GetVerticalScroll()))
+    ed.__scripts.OnCursorChanged(ed, 0, -10, 10, 16)
+    assert(box:GetVerticalScroll() == 10, "cursor above view not scrolled back: " .. tostring(box:GetVerticalScroll()))
+  end
   st.pasteCard.card.use.__scripts.OnClick(st.pasteCard.card.use)
   assert(st.boxes[3].box:GetText() == "three", "paste did not fill the squares")
   -- #20: the grid keeps legible rows at the minimum window height

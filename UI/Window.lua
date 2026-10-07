@@ -422,7 +422,25 @@ local function buildSetup(f)
     pc.card.use:SetEnabledState(n > 0)
   end)
   pc.card.box:SetScrollChild(pc.card.edit)
+  -- A scroll frame made in Lua ignores the mouse unless told otherwise;
+  -- clicking the blank area below the text must still focus the box.
+  pc.card.box:EnableMouse(true)
   pc.card.box:SetScript("OnMouseDown", function() pc.card.edit:SetFocus() end)
+  -- Keep the cursor in view as a long paste grows past the visible lines.
+  pc.card.edit:SetScript("OnCursorChanged", function(self, x, y, w, h)
+    local box = pc.card.box
+    local view = box:GetHeight() or 0
+    local scroll = box:GetVerticalScroll() or 0
+    local top, bottom = -y, -y + h
+    if top < scroll then scroll = top
+    elseif bottom > scroll + view then scroll = bottom - view end
+    box:SetVerticalScroll(math.max(0, scroll))
+  end)
+  -- the edit box is at least as tall as its frame, so the blank area is part of it
+  pc.card.box:SetScript("OnSizeChanged", function(self, w, h)
+    pc.card.edit:SetWidth((w or 470) - 8)
+    if (pc.card.edit:GetHeight() or 0) < (h or 0) then pc.card.edit:SetHeight(h) end
+  end)
   pc.card.count = W.text(pc.card, W.fonts().small, "inkDim"); pc.card.count:SetPoint("BOTTOMLEFT", 18, 22)
   pc.card.use = W.button(pc.card, "Use these squares", function()
     s:SetItems(Window.parseList(pc.card.edit:GetText()))
