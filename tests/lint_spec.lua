@@ -75,3 +75,29 @@ describe("licences", function()
     assert.is_nil(pkg:find("\n%s*%-%s*Licenses"), "Licenses/ is ignored by .pkgmeta")
   end)
 end)
+
+describe("pins", function()
+  it("pins every external to a tag or commit and every action to a commit", function()
+    local pkg = read(".pkgmeta")
+    local inExternals, current = false, nil
+    local pinned = {}
+    for line in (pkg .. "\n"):gmatch("(.-)\n") do
+      if line:match("^externals:") then inExternals = true
+      elseif line:match("^%S") then inExternals = false
+      elseif inExternals then
+        local path = line:match("^%s%s(Libs/[^:]+):")
+        if path then current = path; pinned[current] = false
+        elseif current and (line:match("^%s+tag:%s*%S") or line:match("^%s+commit:%s*%x+")) then pinned[current] = true end
+      end
+    end
+    local n = 0
+    for path, ok in pairs(pinned) do n = n + 1; assert.is_true(ok, path .. " is not pinned") end
+    assert.is_true(n >= 5)
+    for _, wf in ipairs({ ".github/workflows/ci.yml", ".github/workflows/release.yml" }) do
+      for line in (read(wf) .. "\n"):gmatch("(.-)\n") do
+        local uses = line:match("uses:%s*(%S+)")
+        if uses then assert.is_truthy(uses:match("@%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$"), wf .. ": " .. uses .. " is not pinned to a commit") end
+      end
+    end
+  end)
+end)

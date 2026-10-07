@@ -1,13 +1,24 @@
 package-as: DEABingo
 
-# Libraries are pulled at package time, never vendored by hand. Pin by tag
-# when a stable tag exists; trunk is Ace3's convention.
+# Libraries are pulled at package time, never vendored by hand, and pinned:
+# Ace3 and LibDBIcon to a release tag on wowace, LibDataBroker to a commit.
+# scripts/fetch-libs.sh uses the same pins, so CI tests what releases ship.
 externals:
-  Libs/LibStub: https://repos.wowace.com/wow/ace3/trunk/LibStub
-  Libs/CallbackHandler-1.0: https://repos.wowace.com/wow/ace3/trunk/CallbackHandler-1.0
-  Libs/AceComm-3.0: https://repos.wowace.com/wow/ace3/trunk/AceComm-3.0
-  Libs/LibDataBroker-1.1: https://github.com/tekkub/libdatabroker-1-1
-  Libs/LibDBIcon-1.0: https://repos.wowace.com/wow/libdbicon-1-0/trunk/LibDBIcon-1.0
+  Libs/LibStub:
+    url: https://repos.wowace.com/wow/ace3/trunk/LibStub
+    tag: Release-r1403
+  Libs/CallbackHandler-1.0:
+    url: https://repos.wowace.com/wow/ace3/trunk/CallbackHandler-1.0
+    tag: Release-r1403
+  Libs/AceComm-3.0:
+    url: https://repos.wowace.com/wow/ace3/trunk/AceComm-3.0
+    tag: Release-r1403
+  Libs/LibDataBroker-1.1:
+    url: https://github.com/tekkub/libdatabroker-1-1
+    commit: 1a63ede0248c11aa1ee415187c1f9c9489ce3e02
+  Libs/LibDBIcon-1.0:
+    url: https://repos.wowace.com/wow/libdbicon-1-0/trunk/LibDBIcon-1.0
+    tag: v12.0.3
 
 ignore:
   - tests

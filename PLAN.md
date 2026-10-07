@@ -292,7 +292,7 @@ raid; in Raid mode, everyone in the group, pugs included. When the owner picks R
 never in the addon name, slug, icon or marketing. Never ship datamined art; runtime `SetAtlas` by name is fine. The repo never contains guild
 presets, real names, SavedVariables dumps or API keys; gitleaks pre-commit as in the web repo.
 
-**Publishing.** BigWigs packager via GitHub Actions to CurseForge, Wago and GitHub Releases; `.pkgmeta` externals pinned by tag; API keys only
+**Publishing.** BigWigs packager via GitHub Actions to CurseForge, Wago and GitHub Releases; `.pkgmeta` externals pinned by tag or commit (done 2026-10-07, issue #25); API keys only
 in Actions secrets; `## X-Curse-Project-ID` and `## X-Wago-ID` in the TOC.
 
 ## 8. Testing and dev loop
