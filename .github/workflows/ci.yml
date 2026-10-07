@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+# CI only reads the code. Without this the token gets the repo default,
+# which can include write access.
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks needs full history, not just the tip
+      # Deliberately not gitleaks-action: it scans the push's commit RANGE, which
+      # does not resolve on a first push. This scans the whole history, every time.
+      - name: gitleaks
+        run: |
+          VERSION=8.24.3
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --redact --verbose --no-banner
+
+  test:
+    name: lua tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # LuaJIT has Lua 5.1 semantics and the bit library, like the WoW client.
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: luajit-2.1
+      - uses: leafo/gh-actions-luarocks@v4
+      - name: install busted
+        run: luarocks install busted
+      - name: fetch embedded libraries
+        run: scripts/fetch-libs.sh
+      - name: compile every file the client loads
+        run: |
+          for f in Core/*.lua UI/*.lua Libs/*/*.lua; do luajit -bl "$f" > /dev/null || exit 1; done
+      - name: busted
+        run: busted
+      - name: headless client smoke
+        run: luajit tests/client_smoke.lua | tail -1

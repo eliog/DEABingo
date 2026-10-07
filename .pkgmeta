@@ -17,5 +17,11 @@ ignore:
   - PLAN.md
   - .busted
   - .githooks
+  - .github
+  - .gitignore
+  - .pkgmeta
+  - CHANGELOG.md
+
+manual-changelog: CHANGELOG.md
 
 enable-nolib-creation: no

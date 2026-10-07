@@ -1,0 +1,49 @@
+name: release
+
+# A version tag (v0.1.0) builds the addon zip with the BigWigs packager,
+# pulling the libraries named in .pkgmeta, then publishes a GitHub release
+# with the zip. With CF_API_KEY set as a repository secret the packager also
+# uploads to CurseForge (the project id is in the TOC); WAGO_API_TOKEN does
+# the same for Wago. Without them those uploads are skipped.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Package and release
+        uses: BigWigsMods/packager@v2
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+
+      - name: Create GitHub release with the packaged zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+          ZIP=$(ls .release/*.zip 2>/dev/null | head -1 || true)
+          if [ -z "$ZIP" ]; then
+            echo "No packaged zip found in .release/" >&2
+            exit 1
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists, uploading zip"
+            gh release upload "$TAG" "$ZIP" --clobber
+          else
+            echo "Creating release $TAG"
+            gh release create "$TAG" "$ZIP" --title "$TAG" --notes-file CHANGELOG.md
+          fi
