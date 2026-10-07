@@ -53,6 +53,7 @@ function Chip.init(callbacks)
 
   W.draggable(chip, app.savePosition)
   W.restorePosition(chip, app.position(), { point = "TOP", y = -120 })
+  chip:SetScript("OnDragStart", function(self) if not self.locked then self:StartMoving() end end)
   chip:SetScript("OnClick", function() Window.toggle() end)
   W.tooltip(chip, function()
     return { "DEA Bingo", "Click to open the board. Drag to move." }
@@ -71,10 +72,17 @@ function Chip.flash()
   if chip then chip.flashAlpha = 1 end
 end
 
+function Chip.applyOptions(o)
+  if not chip then return end
+  chip.locked = o.chipLocked == true
+  chip.hidden = o.chipHidden == true
+  if chip.hidden then chip:Hide() end
+end
+
 -- v is the view model, or nil to hide.
 function Chip.update(v)
   if not chip then return end
-  if not v or v.state ~= "open" or not v.board then chip:Hide(); return end
+  if chip.hidden or not v or v.state ~= "open" or not v.board then chip:Hide(); return end
   chip:Show()
   chip.title:SetText(Logic.escape(v.title):upper())
   chip.count:SetText(("%d/24"):format(v.callCount))

@@ -147,6 +147,19 @@ for _, c in ipairs(clients) do
   sh.card.confirm.__scripts.OnClick(sh.card.confirm); pump()
   Window.sheet(cell.item); sh.card.cancel.__scripts.OnClick(sh.card.cancel)
   Window.setCombat(true); Window.setCombat(false)
+  -- history and options views, and the paste parser
+  Window.show("history"); Window.refresh()
+  Window.show("options"); Window.refresh()
+  local opt = Window.frame().views.options.rows[1].buttons[1]
+  opt.__scripts.OnClick(opt)
+  local parsed = Window.parseList("1. Alpha\n2) Beta\n- Gamma\n\nalpha\n• Delta")
+  assert(#parsed == 4 and parsed[1] == "Alpha" and parsed[4] == "Delta", "paste parser")
+  Window.show("setup"); Window.refresh()
+  local st = Window.frame().views.setup
+  st:OpenPaste(); st.pasteCard.card.edit:SetText("one\ntwo\nthree"); st.pasteCard.card.edit.__scripts.OnTextChanged(st.pasteCard.card.edit)
+  st.pasteCard.card.use.__scripts.OnClick(st.pasteCard.card.use)
+  assert(st.boxes[3].box:GetText() == "three", "paste did not fill the squares")
+  Window.show("game"); Window.refresh()
   -- caller panel: switch mode, filter, click a row (calls or undoes through App)
   local game = Window.frame().views.game
   if v.canCall then

@@ -223,6 +223,7 @@ end
 
 -- Game events from the host or the mirror, for this client's game only.
 function App.onGameEvent(kind, info)
+  if kind == "close" then App.archive(info.gid); App.uiRefresh(); return end
   if info.gid ~= App.current then return end
   local me = App.me()
   if kind == "call" then
@@ -232,6 +233,8 @@ function App.onGameEvent(kind, info)
     App.playSound(mine and "bingo" or "call")
   elseif kind == "undo" then
     App.playSound("undo")
+  elseif kind == "close" then
+    App.archive(info.gid)
   end
 end
 
@@ -280,8 +283,10 @@ function App.setup()
   App.ticker = C_Timer.NewTicker(1, App.tick)
   App.ready = true
   if ns.Window and rawget(_G, "UIParent") then
+    ns.Theme.apply(App.store.db.options.theme or "dark")
     ns.Window.init(App.ui)
     ns.Chip.init(App.chipUi)
+    ns.Chip.applyOptions(App.store.db.options)
     App.uiRefresh()
   end
   return true
@@ -299,12 +304,23 @@ function App.tick()
       debug_("rejoining " .. gid)
     end
   end
-  for gid, host in pairs(App.hosts) do
-    if host.record.state == "closed" and not host.closedNoted then
-      host.closedNoted = true
-      App.store:addHistory({ gid = gid, title = host.record.title, closedAt = host.record.closedAt, owner = host.record.owner })
-    end
+end
+
+-- Keep a finished game readable: boards, calls, winners. Host or follower.
+function App.archive(gid)
+  local src = App.hosts[gid] and App.hosts[gid].record or App.mirror.games[gid]
+  if not src then return end
+  local roster = {}
+  for name, e in pairs(src.roster or {}) do
+    roster[name] = { board = e.board, canCall = e.canCall, bingoAt = e.bingoAt }
   end
+  local calls = {}
+  for idx, t in pairs(src.calls or {}) do calls[idx] = t end
+  App.store:addHistory({
+    gid = gid, title = src.title, owner = src.owner, audience = src.audience,
+    createdAt = src.createdAt, closedAt = src.closedAt or GetServerTime(),
+    items = src.items, roster = roster, calls = calls,
+  })
 end
 
 local helloPending = false
@@ -402,6 +418,19 @@ App.ui = {
   position = function() return App.store.db.options.window end,
   defaultAudience = function() return App.inGuild() and "G" or "R" end,
   inGuild = App.inGuild,
+  history = function() return App.store:history() end,
+  historyView = function(gid)
+    for _, e in ipairs(App.store:history()) do
+      if e.gid == gid then return View.fromHistory(e, App.me()) end
+    end
+    return nil
+  end,
+  option = function(key) return App.store.db.options[key] end,
+  setOption = function(key, value)
+    App.store.db.options[key] = value
+    if key == "theme" then ns.Theme.apply(value) end
+    if ns.Chip then ns.Chip.applyOptions(App.store.db.options) end
+  end,
   itemSets = function()
     local out = {}
     for _, p in ipairs(ns.PRESETS) do out[#out + 1] = { name = p.name, items = p.items } end

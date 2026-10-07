@@ -277,6 +277,19 @@ local function buildLobby(f)
   l.head = W.text(l, W.fonts().eyebrow, "inkFaint")
   l.head:SetPoint("TOPLEFT", PAD + 2, -PAD - 4)
   l.head:SetText("GAMES AROUND YOU")
+  local function link(text, x, view)
+    local fs = W.text(l, W.fonts().eyebrow, "inkDim", "RIGHT")
+    fs:SetPoint("TOPRIGHT", -PAD - x, -PAD - 4)
+    fs:SetText(text)
+    local b = CreateFrame("Button", nil, l)
+    b:SetAllPoints(fs)
+    b:SetScript("OnEnter", function() Theme.set(fs, "ink") end)
+    b:SetScript("OnLeave", function() Theme.set(fs, "inkDim") end)
+    b:SetScript("OnClick", function() Window.show(view) end)
+    return fs
+  end
+  l.historyLink = link("HISTORY", 90, "history")
+  l.optionsLink = link("OPTIONS", 0, "options")
   l.empty = W.text(l, W.fonts().body, "inkDim", "CENTER")
   l.empty:SetPoint("CENTER", 0, 20)
   l.empty:SetWidth(420)
@@ -314,6 +327,57 @@ local function buildSetup(f)
 
   s.fromLabel = W.text(s, W.fonts().eyebrow, "inkFaint"); s.fromLabel:SetPoint("TOPLEFT", s.title, "BOTTOMLEFT", 2, -12); s.fromLabel:SetText("START FROM")
   s.fromButtons = {}
+  s.pasteBtn = W.button(s, "Paste a list…", function() s:OpenPaste() end, { width = 150, height = 26, font = W.fonts().small })
+
+  -- Paste card: a multi-line box, one square per line, numbering stripped.
+  local pc = CreateFrame("Button", nil, s)
+  pc:SetAllPoints(f)
+  pc:SetFrameLevel((s:GetFrameLevel() or 0) + 30)
+  pc.scrim = W.rect(pc, "scrim"); pc.scrim:SetAllPoints()
+  pc:SetScript("OnClick", function() pc:Hide() end)
+  pc.card = W.panel(pc, "raised")
+  pc.card:SetSize(520, 420)
+  pc.card:SetPoint("CENTER", 0, 10)
+  pc.card:EnableMouse(true)
+  pc.card.eyebrow = W.text(pc.card, W.fonts().eyebrow, "inkFaint"); pc.card.eyebrow:SetPoint("TOPLEFT", 18, -16); pc.card.eyebrow:SetText("PASTE A LIST")
+  pc.card.hint = W.text(pc.card, W.fonts().small, "inkDim"); pc.card.hint:SetPoint("TOPLEFT", 18, -34); pc.card.hint:SetPoint("RIGHT", -18, 0)
+  pc.card.hint:SetText("One square per line. Numbers and bullets at the start of a line are dropped; so are duplicates and blank lines.")
+  pc.card.box = CreateFrame("ScrollFrame", nil, pc.card, "UIPanelScrollFrameTemplate")
+  pc.card.box:SetPoint("TOPLEFT", 18, -66); pc.card.box:SetPoint("BOTTOMRIGHT", -18, 58)
+  if pc.card.box.ScrollBar then pc.card.box.ScrollBar:Hide(); pc.card.box.ScrollBar:SetScript("OnShow", function(sb) sb:Hide() end) end
+  pc.card.boxBg = W.rect(pc.card, "sunk"); pc.card.boxBg:SetPoint("TOPLEFT", pc.card.box, -6, 6); pc.card.boxBg:SetPoint("BOTTOMRIGHT", pc.card.box, 6, -6)
+  pc.card.edit = CreateFrame("EditBox", nil, pc.card.box)
+  pc.card.edit:SetMultiLine(true)
+  pc.card.edit:SetAutoFocus(false)
+  pc.card.edit:SetFontObject(W.fonts().body)
+  pc.card.edit:SetWidth(470)
+  pc.card.edit:SetTextInsets(4, 4, 4, 4)
+  Theme.register(pc.card.edit, "ink", "text")
+  pc.card.edit:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+  pc.card.edit:SetScript("OnTextChanged", function(self)
+    local n = #Window.parseList(self:GetText())
+    pc.card.count:SetText(n == 0 and "" or (n .. " of 24 squares"))
+    pc.card.use:SetEnabledState(n > 0)
+  end)
+  pc.card.box:SetScrollChild(pc.card.edit)
+  pc.card.box:SetScript("OnMouseDown", function() pc.card.edit:SetFocus() end)
+  pc.card.count = W.text(pc.card, W.fonts().small, "inkDim"); pc.card.count:SetPoint("BOTTOMLEFT", 18, 22)
+  pc.card.use = W.button(pc.card, "Use these squares", function()
+    s:SetItems(Window.parseList(pc.card.edit:GetText()))
+    pc:Hide()
+  end, { width = 170, height = 30, primary = true })
+  pc.card.use:SetPoint("BOTTOMRIGHT", -16, 14)
+  pc.card.cancel = W.button(pc.card, "Cancel", function() pc:Hide() end, { width = 100, height = 30 })
+  pc.card.cancel:SetPoint("RIGHT", pc.card.use, "LEFT", -8, 0)
+  pc:Hide()
+  s.pasteCard = pc
+  function s:OpenPaste()
+    pc.card.edit:SetText("")
+    pc.card.count:SetText("")
+    pc.card.use:SetEnabledState(false)
+    pc:Show()
+    pc.card.edit:SetFocus()
+  end
 
   s.squaresLabel = W.text(s, W.fonts().eyebrow, "inkFaint"); s.squaresLabel:SetPoint("TOPLEFT", s.fromLabel, "BOTTOMLEFT", 0, -36); s.squaresLabel:SetText("24 SQUARES")
   s.squaresHint = W.text(s, W.fonts().small, "inkFaint"); s.squaresHint:SetPoint("LEFT", s.squaresLabel, "RIGHT", 10, 0)
@@ -407,7 +471,9 @@ local function buildSetup(f)
     -- start-from buttons: presets and saved sets
     local sources = app.itemSets()
     for _, b in ipairs(self.fromButtons) do b:Hide() end
-    local x = 0
+    self.pasteBtn:ClearAllPoints()
+    self.pasteBtn:SetPoint("TOPLEFT", self.fromLabel, "BOTTOMLEFT", 0, -4)
+    local x = 156
     for i, src in ipairs(sources) do
       local b = self.fromButtons[i]
       if not b then
@@ -428,6 +494,99 @@ local function buildSetup(f)
 
   s.title:SetScript("OnTextChanged", function() s:Validate() end)
   return s
+end
+
+-- Turn pasted text into up to 24 clean, distinct squares.
+function Window.parseList(text)
+  local out, seen = {}, {}
+  for line in tostring(text or ""):gmatch("[^\r\n]+") do
+    line = line:gsub("^%s*[%d]+[%.%)%-:]%s*", ""):gsub("^%s*[%-%*•]%s*", "")
+    line = Logic.cleanText(line)
+    if line ~= "" and not seen[line:lower()] and #out < Logic.ITEM_COUNT then
+      seen[line:lower()] = true
+      out[#out + 1] = line
+    end
+  end
+  return out
+end
+
+-- History: finished games, newest first; each opens read-only.
+local function buildHistory(f)
+  local h = CreateFrame("Frame", nil, f)
+  h:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -HEADER)
+  h:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, FOOTER)
+  h.head = W.text(h, W.fonts().eyebrow, "inkFaint")
+  h.head:SetPoint("TOPLEFT", PAD + 2, -PAD - 4)
+  h.head:SetText("PAST GAMES")
+  h.empty = W.text(h, W.fonts().body, "inkDim", "CENTER")
+  h.empty:SetPoint("CENTER", 0, 20)
+  h.empty:SetText("No finished games on this character yet.")
+  h.list = scrollList(h, 64, function(parent)
+    local row = W.panel(parent, "raised")
+    row.title = W.text(row, W.fonts().title, "ink"); row.title:SetPoint("TOPLEFT", 12, -10); row.title:SetPoint("RIGHT", -150, 0)
+    row.meta = W.text(row, W.fonts().small, "inkDim"); row.meta:SetPoint("BOTTOMLEFT", 12, 10); row.meta:SetPoint("RIGHT", -150, 0)
+    row.button = W.button(row, "Open", function(self) local r = self:GetParent(); if r.entry then win.historyGid = r.entry.gid; Window.show("game") end end, { width = 110, height = 28 })
+    row.button:SetPoint("RIGHT", -12, 0)
+    return row
+  end)
+  h.list:SetPoint("TOPLEFT", PAD, -(PAD + 24))
+  h.list:SetPoint("BOTTOMRIGHT", -PAD, PAD)
+  return h
+end
+
+-- Options: a few toggles, no slash commands needed.
+local OPTIONS = {
+  { key = "theme", label = "Theme", kind = "choice", choices = { { "dark", "Dark" }, { "light", "Light" } }, default = "dark",
+    hint = "Dark is deep stone, light is aged vellum, both from the website." },
+  { key = "sounds", label = "Sounds", kind = "bool", default = true, hint = "A soft tick on a call, a chime for your bingo." },
+  { key = "quietInCombat", label = "Quiet in combat", kind = "bool", default = true, hint = "No sounds while you are fighting. Calls still show on the chip." },
+  { key = "chipHidden", label = "Hide the chip", kind = "bool", default = false, invert = true, hint = "The one-line board at the top of the screen while a game is open." },
+  { key = "chipLocked", label = "Lock the chip", kind = "bool", default = false, hint = "Stops the chip from being dragged." },
+}
+
+local function buildOptions(f)
+  local o = CreateFrame("Frame", nil, f)
+  o:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -HEADER)
+  o:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, FOOTER)
+  o.head = W.text(o, W.fonts().eyebrow, "inkFaint")
+  o.head:SetPoint("TOPLEFT", PAD + 2, -PAD - 4)
+  o.head:SetText("OPTIONS")
+  o.rows = {}
+  local y = -(PAD + 30)
+  for i, def in ipairs(OPTIONS) do
+    local row = CreateFrame("Frame", nil, o)
+    row:SetPoint("TOPLEFT", PAD, y); row:SetPoint("RIGHT", -PAD, 0); row:SetHeight(54)
+    row.rule = row:CreateTexture(nil, "BORDER"); Theme.register(row.rule, "line", "bg")
+    row.rule:SetPoint("BOTTOMLEFT"); row.rule:SetPoint("BOTTOMRIGHT"); row.rule:SetHeight(W.px(1))
+    row.label = W.text(row, W.fonts().bodyBold, "ink"); row.label:SetPoint("TOPLEFT", 2, -10); row.label:SetText(def.label)
+    row.hint = W.text(row, W.fonts().small, "inkFaint"); row.hint:SetPoint("BOTTOMLEFT", 2, 10); row.hint:SetPoint("RIGHT", -220, 0); row.hint:SetText(def.hint)
+    row.buttons = {}
+    local choices = def.kind == "choice" and def.choices or { { true, "On" }, { false, "Off" } }
+    local x = 0
+    for j = #choices, 1, -1 do
+      local value, label = choices[j][1], choices[j][2]
+      local b = W.button(row, label, function() app.setOption(def.key, value); Window.refresh() end, { width = 86, height = 26 })
+      b:SetPoint("RIGHT", -x, 0)
+      b.value = value
+      row.buttons[#row.buttons + 1] = b
+      x = x + 92
+    end
+    row.def = def
+    o.rows[i] = row
+    y = y - 58
+  end
+  function o:Refresh()
+    for _, row in ipairs(self.rows) do
+      local current = app.option(row.def.key)
+      if current == nil then current = row.def.default end
+      for _, b in ipairs(row.buttons) do
+        local on = b.value == current
+        Theme.set(b.face, on and "felWash" or "raised")
+        W.borderRole(b.border, on and "fel" or "lineStrong")
+      end
+    end
+  end
+  return o
 end
 
 ------------------------------------------------------------------ window
@@ -453,7 +612,7 @@ function Window.init(callbacks)
 
   win.header = buildHeader(win)
   win.footer = buildFooter(win)
-  win.views = { game = buildGame(win), lobby = buildLobby(win), setup = buildSetup(win) }
+  win.views = { game = buildGame(win), lobby = buildLobby(win), setup = buildSetup(win), history = buildHistory(win), options = buildOptions(win) }
   hideAll(win.views)
 
   -- resize grip
@@ -542,6 +701,7 @@ end
 function Window.show(view)
   if not win then return end
   if view then win.view = view end
+  if view ~= "game" then win.historyGid = nil end
   win:Show()
   Window.refresh()
 end
@@ -671,7 +831,11 @@ local function renderGame(v)
   end
 
   local f = win.footer
-  if v.state == "closed" then
+  if v.history then
+    f.text:SetText(("Closed %s. Hosted by %s."):format(v.closedAt and date("%a %d %b, %H:%M", v.closedAt) or "", v.ownerShort))
+    f.action:Show(); f.action:SetLabel("Back to history"); f.action:SetEnabledState(true)
+    f.action:SetScript("OnClick", function() Window.show("history") end)
+  elseif v.state == "closed" then
     f.text:SetText("This game is closed. The board stays readable.")
     f.action:Show(); f.action:SetLabel("Back to games"); f.action:SetEnabledState(true)
     f.action:SetScript("OnClick", function() app.leaveToLobby(); Window.show("lobby") end)
@@ -695,9 +859,48 @@ local function renderGame(v)
   end
 end
 
+local function renderHistory()
+  local h = win.views.history
+  local rows = app.history()
+  win.header.title:SetText("History")
+  win.header.status:SetText(#rows == 0 and "" or (#rows .. " kept"))
+  h.list:Fill(rows, function(row, e)
+    row.entry = e
+    row.title:SetText(Logic.escape(e.title or ""))
+    local winners = {}
+    for name, p in pairs(e.roster or {}) do if p.bingoAt then winners[#winners + 1] = { name = View.shortName(name), t = p.bingoAt } end end
+    table.sort(winners, function(a, b) return a.t < b.t end)
+    local names = {}
+    for i = 1, math.min(3, #winners) do names[i] = winners[i].name end
+    local players = 0 for _ in pairs(e.roster or {}) do players = players + 1 end
+    local calls = 0 for _ in pairs(e.calls or {}) do calls = calls + 1 end
+    local bits = { e.closedAt and date("%a %d %b", e.closedAt) or "", players .. (players == 1 and " player" or " players"), calls .. (calls == 1 and " call" or " calls") }
+    if #winners > 0 then bits[#bits + 1] = "bingo: " .. table.concat(names, ", ") .. (#winners > 3 and (" +" .. (#winners - 3)) or "") end
+    row.meta:SetText(Logic.escape(table.concat(bits, "  ·  ")))
+  end)
+  if #rows == 0 then h.empty:Show() else h.empty:Hide() end
+  win.footer.text:SetText("Finished games stay readable here, newest first.")
+  win.footer.action:Show(); win.footer.action:SetLabel("Games"); win.footer.action:SetEnabledState(true)
+  win.footer.action:SetScript("OnClick", function() Window.show("lobby") end)
+end
+
+local function renderOptions()
+  win.header.title:SetText("Options")
+  win.header.status:SetText("")
+  win.views.options:Refresh()
+  win.footer.text:SetText("")
+  win.footer.action:Show(); win.footer.action:SetLabel("Games"); win.footer.action:SetEnabledState(true)
+  win.footer.action:SetScript("OnClick", function() Window.show("lobby") end)
+end
+
 function Window.refresh()
   if not win or not win:IsShown() then return end
-  local v = app.view()
+  local v
+  if win.historyGid then
+    v = app.historyView(win.historyGid)
+    if not v then win.historyGid = nil end
+  end
+  v = v or app.view()
   local view = win.view
   if not view then view = v and "game" or "lobby" end
   if view == "game" and not v then view = "lobby" end
@@ -706,5 +909,7 @@ function Window.refresh()
   win.views[view]:Show()
   if view == "lobby" then renderLobby()
   elseif view == "setup" then renderSetup()
+  elseif view == "history" then renderHistory()
+  elseif view == "options" then renderOptions()
   else renderGame(v) end
 end
