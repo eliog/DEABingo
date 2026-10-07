@@ -31,10 +31,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # LuaJIT has Lua 5.1 semantics and the bit library, like the WoW client.
+      # The WoW client is Lua 5.1; PUC Lua 5.1 is built from source here
+      # (locally we use LuaJIT, which has the same semantics).
       - uses: leafo/gh-actions-lua@v10
         with:
-          luaVersion: luajit-2.1
+          luaVersion: "5.1"
       - uses: leafo/gh-actions-luarocks@v4
       - name: install busted
         run: luarocks install busted
@@ -42,8 +43,8 @@ jobs:
         run: scripts/fetch-libs.sh
       - name: compile every file the client loads
         run: |
-          for f in Core/*.lua UI/*.lua Libs/*/*.lua; do luajit -bl "$f" > /dev/null || exit 1; done
+          for f in Core/*.lua UI/*.lua Libs/*/*.lua; do luac -p "$f" || exit 1; done
       - name: busted
         run: busted
       - name: headless client smoke
-        run: luajit tests/client_smoke.lua | tail -1
+        run: lua tests/client_smoke.lua | tail -1
