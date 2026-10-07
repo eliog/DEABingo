@@ -122,7 +122,7 @@ Tests: busted under Lua 5.1 (`luarocks --lua-version=5.1 install busted`), with 
 
 ## 6. Dev loop
 
-- Symlink: `ln -s ".../Dropbox-Personal/Projects/WoW/RaidBingoAddon/RaidBingo" "/Applications/World of Warcraft/_classic_beta_/Interface/AddOns/RaidBingo"`. Restart the client the first time a new folder or TOC appears; `/reload` thereafter.
+- Symlink: `ln -s "<repo>" "/Applications/World of Warcraft/_classic_beta_/Interface/AddOns/RaidBingo"`. Restart the client the first time a new folder or TOC appears; `/reload` thereafter.
 - Install `!BugGrabber` + `BugSack` from the beta's CurseForge listings. `/etrace` for `CHAT_MSG_ADDON` payload inspection, `/fstack` for frame hierarchy.
 - `/rb debug` toggles a flag that prints every outbound and inbound message with byte counts and the `Enum.SendAddonMessageResult`, and logs CTL queue depth.
 - Solo test mode: `/rb solo` creates a second in-process `Mirror` instance with a fake identity, routes outbound messages through the test loopback instead of `SendAddonMessage`, and renders a second board frame. It reuses the busted stub's dispatcher, so one piece of code serves tests and the live client.

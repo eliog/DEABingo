@@ -165,4 +165,4 @@ Lobby (several games open):
 +------------------------------------------------------+
 ```
 
-Files consulted: the shared brief (`scratchpad/brief.md`), `/Users/elio/Library/CloudStorage/Dropbox-Personal/Projects/WoW/RaidBingo/CLAUDE.md`, and the artboards `BoardPlayer.dc.html`, `Lobby.dc.html`, `CreateGame.dc.html`, `States.dc.html` in `/Users/elio/Library/CloudStorage/Dropbox-Personal/Projects/WoW/RaidBingo/design/`.
+Files consulted: the web game's `CLAUDE.md` and the artboards `BoardPlayer.dc.html`, `Lobby.dc.html`, `CreateGame.dc.html`, `States.dc.html` in its `design/` folder.
