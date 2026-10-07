@@ -382,6 +382,7 @@ function Host:handle(msg, sender)
   if not r or r.state == "drafting" then return end
   local t, f = msg.type, msg.f
   if t == "HI" then
+    if not self.deps.isMember(sender, r.audience) then return end   -- a raid game is not shown to guildies outside it
     if r.state == "open" or (r.state == "closed" and self.deps.now() - (r.closedAt or 0) < Host.CLOSED_ANSWERS) then
       self:heartbeat(sender)
     end
@@ -397,6 +398,7 @@ function Host:handle(msg, sender)
     if not self:canCall(sender) then self:log("call refused, not a caller: " .. sender); return end
     if f.undo then self:undo(f.idx) else self:call(f.idx) end
   elseif t == "IQ" then
+    if not r.roster[sender] and not self.deps.isMember(sender, r.audience) then return end
     if f.itemsHash == r.itemsHash then
       self:emit("IT", { itemsHash = r.itemsHash, title = r.title, items = r.items }, "WHISPER", sender)
     end

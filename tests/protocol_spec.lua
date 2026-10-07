@@ -386,6 +386,31 @@ describe("items", function()
   end)
 end)
 
+describe("audience checks", function()
+  it("does not describe a raid game to a guildie outside the group, nor send them the squares", function()
+    local hub = Hub.new()
+    hub:addClient("Owner-Pagle", { guild = "DEA", group = "raid1" })
+    local outsider = hub:addClient("Banker-Pagle", { guild = "DEA" })   -- guild, not grouped
+    local host = hub.clients["Owner-Pagle"]:host({ title = "Raid only", items = items(), audience = "R" })
+    host:open(); hub:flush()
+    outsider.mirror:hello(); hub:flush()
+    assert.is_nil(outsider.mirror.cards[host.record.gid])
+    outsider.net:send(Codec.encode("IQ", host.record.gid, { itemsHash = host.record.itemsHash }), "WHISPER", "Owner-Pagle")
+    hub:flush()
+    for _, m in ipairs(outsider.received) do assert.is_nil(m.payload:find("\31IT\31", 1, true)) end
+  end)
+
+  it("shows the lobby the sender of a card, not the name inside it", function()
+    local hub = Hub.new()
+    local victim = hub:addClient("Victim-Pagle", { guild = "DEA", group = "raid1" })
+    local liar = hub:addClient("Liar-Pagle", { guild = "DEA", group = "raid1" })
+    liar.net:send(Codec.encode("GA", "lie1", { gen = 1, seq = 1, state = "open", title = "Trust me", owner = "Guildmaster-Pagle", players = 1,
+      callMask = 0, lastActivity = hub:now(), itemsHash = "aaaaaa", createdAt = hub:now(), audience = "G" }), "GUILD")
+    hub:flush()
+    assert.are.equal("Liar-Pagle", victim.mirror:openGames()[1].owner)
+  end)
+end)
+
 describe("sync back-off", function()
   it("asks less and less, and not at all while the host is away", function()
     local hub, host, _, names = guildNight(2)

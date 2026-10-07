@@ -161,7 +161,7 @@ function App.isMember(name, audience)
   -- player names, which sidesteps every realm-format difference.
   local function unitInGroup()
     local okay, a = pcall(UnitInParty, name)
-    if okay and a and not Compat.IsSecret(a) and a then return true end
+    if okay and a ~= nil and not Compat.IsSecret(a) and a then return true end
     local okay2, b = pcall(UnitInRaid, name)
     return okay2 and b ~= nil and not Compat.IsSecret(b)
   end

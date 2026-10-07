@@ -93,7 +93,7 @@ function Mirror:openGames()
     if card.state == "open" then
       local g = self.games[gid]
       out[#out + 1] = {
-        gid = gid, title = card.title, owner = card.owner, players = card.players,
+        gid = gid, title = card.title, owner = card.host, players = card.players,   -- the sender, never the payload
         calls = card.callCount, hostAway = card.away == true, joined = g ~= nil and g.joined == true,
         audience = card.audience,
       }
