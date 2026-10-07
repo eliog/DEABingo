@@ -142,7 +142,7 @@ local function buildTabs(f)
     b.key = def.key
     b:SetScript("OnEnter", function(self) if not self.active then Theme.set(self.label, "ink") end end)
     b:SetScript("OnLeave", function(self) if not self.active then Theme.set(self.label, "inkDim") end end)
-    b:SetScript("OnClick", function(self) Window.show(self.key) end)
+    b:SetScript("OnClick", function(self) win.historyGid = nil; Window.show(self.key) end)   -- a tab always leaves a history board
     t.tabs[def.key] = b
   end
   -- lay out left to right; the Game tab may be hidden

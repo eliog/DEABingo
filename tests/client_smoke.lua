@@ -199,6 +199,19 @@ for _, c in ipairs(clients) do
   App.flushToasts()
   -- history and options views, and the paste parser
   Window.show("history"); Window.refresh()
+  -- #19: a history board open, then the GAME tab: the live game shows, not the history one
+  do
+    local entries = App.ui.history()
+    local hist = entries[1]
+    if hist then
+      Window.frame().historyGid = hist.gid; Window.show("game"); Window.refresh()
+      assert(Window.frame().historyGid == hist.gid, "history board did not open")
+      local gameTab = Window.frame().tabs.tabs.game
+      gameTab.__scripts.OnClick(gameTab)
+      assert(Window.frame().historyGid == nil, "GAME tab left the history board open")
+      assert(Window.frame().view == "game", "GAME tab did not show the game")
+    end
+  end
   Window.show("options"); Window.refresh()
   local opt = Window.frame().views.options.rows[1].buttons[1]
   opt.__scripts.OnClick(opt)
