@@ -11,4 +11,8 @@ if [ -z "$BUSTED" ]; then
   echo "busted is not installed; see the comment at the top of $0" >&2
   exit 1
 fi
-exec luajit "$BUSTED" "$@"
+luajit "$BUSTED" "$@"
+status=$?
+[ $status -ne 0 ] && exit $status
+# Then the headless client smoke, which executes the UI code against a fake widget API.
+luajit tests/client_smoke.lua | tail -1
