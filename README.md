@@ -80,7 +80,10 @@ Details are in `PLAN.md`.
 
 ### Releasing
 
-Add a `## vX.Y.Z (date)` section to the top of `CHANGELOG.md`, then push the matching tag. The release
+Add a `## vX.Y.Z (date)` section to the top of `CHANGELOG.md`, decide whether this release must
+be required to play (set `Codec.MIN_ADDON_VERSION` in `Core/Codec.lua` to the new version if a
+change needs everyone on the same code; leave it for a routine fix), then push the matching tag.
+Clients on an older release are told a newer one exists either way. The release
 workflow runs the BigWigs packager, which pulls the libraries from `.pkgmeta`, builds the zip
 and uploads it to CurseForge (the project id is in the TOC; `CF_API_KEY` is a repository
 secret; `WAGO_API_TOKEN` does the same for Wago). A separate step then creates the GitHub

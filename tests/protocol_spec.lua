@@ -400,21 +400,26 @@ describe("versions", function()
     assert.are.same({ "v0.2.0" }, seen)
   end)
 
-  it("refuses a join below the host's minimum version and allows an equal one", function()
+  it("refuses a join below the release's minimum version and allows an equal one", function()
+    local saved = Codec.MIN_ADDON_VERSION
+    Codec.MIN_ADDON_VERSION = "v0.2.0"
     local hub = Hub.new()
     hub:addClient("Owner-Pagle", { guild = "DEA", group = "raid1", version = "v0.2.0" })
     local old = hub:addClient("Old-Pagle", { guild = "DEA", group = "raid1", version = "v0.1.9" })
     local same = hub:addClient("Same-Pagle", { guild = "DEA", group = "raid1", version = "v0.2.0" })
     local dev = hub:addClient("Dev-Pagle", { guild = "DEA", group = "raid1", version = "dev" })
     local host = hub.clients["Owner-Pagle"]:host({ title = "Strict", items = items(), audience = "G" })
-    host:open(); host:setMinAddon("v0.2.0"); hub:flush()
+    host:open(); hub:flush()
     local okay, err = old.mirror:join(host.record.gid)
     assert.is_nil(okay)
     assert.is_truthy(err:find("v0.2.0", 1, true))
     assert.is_true(same.mirror:join(host.record.gid))
     assert.is_true(dev.mirror:join(host.record.gid))
-    host:setMinAddon(""); hub:flush()
+    -- with no rule set, anyone joins
+    Codec.MIN_ADDON_VERSION = ""
+    host:heartbeat(); hub:flush()
     assert.is_true(old.mirror:join(host.record.gid))
+    Codec.MIN_ADDON_VERSION = saved
   end)
 end)
 

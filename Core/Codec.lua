@@ -23,6 +23,12 @@ local Codec = {}
 ns.Codec = Codec
 
 Codec.PROTOCOL = 2   -- 2: addon version on HI and GA, minimum version on GA
+
+-- The oldest release allowed to join a game hosted by this one. A release
+-- decision, made per tag: leave it for a routine fix, raise it to the new
+-- version when a change needs everyone on the same code. "" means no rule.
+-- Dev builds are never held to it.
+Codec.MIN_ADDON_VERSION = ""
 Codec.FIELD = "\31"
 Codec.LIST = "\30"
 Codec.MAX_PAYLOAD = 8000    -- reassembled bytes accepted before parsing (AceComm chunks it)

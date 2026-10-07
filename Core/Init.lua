@@ -707,13 +707,7 @@ App.ui = {
     return n
   end,
   action = function(key)
-    if key == "requireVersion" then
-      local host = currentGame()
-      if not host then print_("only while hosting a game"); return end
-      local on = host.record.minAddon ~= nil and host.record.minAddon ~= ""
-      host:setMinAddon(on and "" or Compat.GetAddOnVersion(ADDON))
-      print_(on and "any version may join this game" or ("joining this game now needs DEA Bingo " .. Compat.GetAddOnVersion(ADDON)))
-    elseif key == "clearHistory" then
+    if key == "clearHistory" then
       App.store.db.history = {}
       print_("history cleared")
     end

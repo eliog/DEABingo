@@ -692,8 +692,6 @@ local OPTIONS = {
   { key = "minimapHidden", label = "Hide the minimap button", kind = "bool", default = false, hint = "Click it to open the board, right-click for options. Drag it around the minimap." },
   { key = "chipLocked", label = "Lock the chip", kind = "bool", default = false, hint = "Stops the chip from being dragged." },
   { key = "reducedMotion", label = "Reduce motion", kind = "bool", default = false, hint = "No chip flash or badge pulse; toasts still appear." },
-  { key = "requireVersion", label = "Require my version to join", kind = "action", button = "Toggle",
-    hint = "While hosting: players on an older DEA Bingo cannot join this game. Off by default." },
   { key = "clearHistory", label = "Clear history", kind = "action", button = "Clear",
     hint = "Forgets every finished game kept on this character. Item sets stay.",
     confirm = { "CLEAR HISTORY", "Every finished game kept on this character is forgotten. Live games and your saved squares are not touched.", "Clear it" } },
