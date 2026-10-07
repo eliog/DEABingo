@@ -1,0 +1,369 @@
+--[[
+  The replica: every client that is not the host of a game. Holds the lobby
+  (cards heard from hosts) and the games this client has joined, applies the
+  host's sequenced deltas, and asks for a snapshot when it falls behind.
+
+    deps.now()                          server time, seconds
+    deps.me                             "Name-Realm"
+    deps.send(payload, channel, target)
+    deps.channels()                     list of broadcast channels available now ("GUILD", "GROUP")
+    deps.persist(gid, state)            optional, called after every change to a joined game
+    deps.log(text)                      optional
+]]
+
+local _, ns = ...
+if type(ns) ~= "table" then ns = {} end
+local Logic = ns.Logic or require("Core.Logic")
+local Codec = ns.Codec or require("Core.Codec")
+
+local Mirror = {}
+Mirror.__index = Mirror
+ns.Mirror = Mirror
+
+Mirror.CARD_TTL = 90         -- seconds without a heartbeat before "host away"
+Mirror.GAP_WAIT = 3          -- seconds to wait for an out-of-order delta before asking
+Mirror.SYNC_COOLDOWN = 10    -- seconds between sync requests per game
+Mirror.HELLO_GID = "0"
+
+local SEQUENCED = { JD = true, CL = true, UN = true, GR = true, TI = true, CX = true, TR = true }
+
+function Mirror.new(deps)
+  local self = setmetatable({}, Mirror)
+  self.deps = deps
+  self.cards = {}        -- gid -> card
+  self.games = {}        -- gid -> game
+  self.saidNewer = false
+  -- Marks our own HI so its echo is recognisable. Drawn from the unit float:
+  -- the client's math.random(m, n) misbehaves for ranges this large.
+  self.nonce = math.floor(math.random() * 2147483647)
+  return self
+end
+
+function Mirror:log(text)
+  if self.deps.log then self.deps.log(text) end
+end
+
+function Mirror:persist(gid)
+  if self.deps.persist then self.deps.persist(gid, self.games[gid]) end
+end
+
+function Mirror:emit(msgType, gid, fields, channel, target)
+  local payload, err = Codec.encode(msgType, gid, fields)
+  assert(payload, err)
+  self.deps.send(payload, channel, target)
+end
+
+--------------------------------------------------------------------- lobby
+
+-- Ask every host around for its card. On login, reload and roster change.
+function Mirror:hello()
+  for _, channel in ipairs(self.deps.channels()) do
+    self:emit("HI", Mirror.HELLO_GID, { ver = Codec.PROTOCOL, nonce = self.nonce }, channel)
+  end
+end
+
+function Mirror:openGames()
+  local out = {}
+  for gid, card in pairs(self.cards) do
+    if card.state == "open" then
+      local g = self.games[gid]
+      out[#out + 1] = {
+        gid = gid, title = card.title, owner = card.owner, players = card.players,
+        calls = card.callCount, hostAway = card.away == true, joined = g ~= nil and g.joined == true,
+        audience = card.audience,
+      }
+    end
+  end
+  table.sort(out, function(a, b)
+    if a.joined ~= b.joined then return a.joined end
+    if a.title ~= b.title then return a.title < b.title end
+    return a.owner < b.owner
+  end)
+  return out
+end
+
+function Mirror:join(gid)
+  local card = self.cards[gid]
+  if not card then return nil, "no such game" end
+  if card.state ~= "open" then return nil, "that game is closed" end
+  self:emit("JN", gid, { ver = Codec.PROTOCOL }, "WHISPER", card.host)
+  return true
+end
+
+--------------------------------------------------------------------- games
+
+local function newGame(gid, host)
+  return {
+    gid = gid, owner = host, gen = 0, seq = 0, state = "open", title = "", createdAt = 0,
+    lastActivity = 0, closedAt = nil, itemsHash = nil, audience = "G", items = nil,
+    roster = {}, calls = {}, joined = false, myBoard = nil, pending = {}, lastSyncReq = -math.huge,
+    gapSince = nil, events = {},
+  }
+end
+
+local function calledSet(game)
+  local set = {}
+  for idx in pairs(game.calls) do set[idx] = true end
+  return set
+end
+
+local function countCalls(mask)
+  local n = 0
+  for idx = 0, Logic.ITEM_COUNT - 1 do if Codec.maskHas(mask, idx) then n = n + 1 end end
+  return n
+end
+
+function Mirror:requestSync(gid, force)
+  local g = self.games[gid]
+  if not g then return end
+  local now = self.deps.now()
+  if not force and g.lastSyncReq + Mirror.SYNC_COOLDOWN > now then return end
+  g.lastSyncReq = now
+  self:emit("SQ", gid, { haveSeq = g.seq }, "WHISPER", g.owner)
+end
+
+-- A granted caller asks the host to call or undo; the host decides and broadcasts.
+function Mirror:requestCall(gid, idx, undo)
+  local g = self.games[gid]
+  if not g then return nil, "not in that game" end
+  if g.state ~= "open" then return nil, "that game is closed" end
+  local st = self:myState(gid)
+  if not st or not st.canCall then return nil, "you are not a caller" end
+  self.nonce = (self.nonce or 0) + 1
+  self:emit("CQ", gid, { idx = idx, undo = undo == true, nonce = self.nonce }, "WHISPER", g.owner)
+  return true
+end
+
+function Mirror:requestItems(gid)
+  local g = self.games[gid]
+  if not g or not g.itemsHash then return end
+  self:emit("IQ", gid, { itemsHash = g.itemsHash }, "WHISPER", g.owner)
+end
+
+-- Apply one in-order delta. Only called with seq == g.seq + 1 (or from a snapshot).
+function Mirror:applyDelta(g, msg)
+  local t, f = msg.type, msg.f
+  g.seq = f.seq
+  if t == "JD" then
+    g.roster[f.name] = { board = f.board, canCall = f.canCall, bingoAt = f.bingoAt }
+    g.events[#g.events + 1] = { kind = "join", at = self.deps.now(), name = f.name }
+  elseif t == "CL" then
+    g.calls[f.idx] = f.t
+    g.lastActivity = f.t
+    for _, name in ipairs(f.winners) do
+      if g.roster[name] then g.roster[name].bingoAt = f.t end
+    end
+    g.events[#g.events + 1] = { kind = "call", at = f.t, idx = f.idx, winners = f.winners }
+  elseif t == "UN" then
+    g.calls[f.idx] = nil
+    g.lastActivity = f.t
+    for _, name in ipairs(f.revoked) do
+      if g.roster[name] then g.roster[name].bingoAt = nil end
+    end
+    -- An undo leaves no trace: the call's event goes with it.
+    for i = #g.events, 1, -1 do
+      local e = g.events[i]
+      if e.kind == "call" and e.idx == f.idx then table.remove(g.events, i); break end
+    end
+  elseif t == "GR" then
+    if g.roster[f.name] then g.roster[f.name].canCall = f.canCall end
+  elseif t == "TI" then
+    g.title = f.title
+  elseif t == "CX" then
+    g.state = "closed"
+    g.closedAt = f.closedAt
+    if self.cards[g.gid] then self.cards[g.gid].state = "closed" end
+  elseif t == "TR" then
+    g.gen = f.gen
+    g.owner = f.newHost
+    if self.cards[g.gid] then self.cards[g.gid].host = f.newHost; self.cards[g.gid].owner = f.newHost end
+  end
+end
+
+function Mirror:drain(g)
+  while g.pending[g.seq + 1] do
+    local msg = g.pending[g.seq + 1]
+    g.pending[g.seq + 1] = nil
+    self:applyDelta(g, msg)
+  end
+  -- Anything older than what we now have is noise.
+  for seq in pairs(g.pending) do if seq <= g.seq then g.pending[seq] = nil end end
+  g.gapSince = next(g.pending) and (g.gapSince or self.deps.now()) or nil
+end
+
+function Mirror:applySnapshot(g, f)
+  g.gen, g.seq, g.state = f.gen, f.seq, f.state
+  g.title, g.owner, g.createdAt = f.title, f.owner, f.createdAt
+  g.lastActivity, g.closedAt, g.audience = f.lastActivity, f.closedAt, f.audience
+  if g.itemsHash ~= f.itemsHash then g.items = nil end
+  g.itemsHash = f.itemsHash
+  g.roster = {}
+  for _, row in ipairs(f.roster) do
+    g.roster[row.name] = { board = row.board, canCall = row.canCall, bingoAt = row.bingoAt }
+  end
+  g.calls = {}
+  for _, c in ipairs(f.calls) do g.calls[c.idx] = c.t end
+  if g.roster[self.deps.me] then g.myBoard = g.roster[self.deps.me].board end
+  self:drain(g)
+end
+
+------------------------------------------------------------------ incoming
+
+-- msg is decoded; sender is the server-stamped "Name-Realm".
+function Mirror:handle(msg, sender)
+  local t, gid, f = msg.type, msg.gid, msg.f
+  if t == "GA" then
+    return self:onCard(gid, f, sender)
+  end
+  local g = self.games[gid]
+  if t == "WE" then
+    local card = self.cards[gid]
+    if g and sender ~= g.owner and f.gen <= g.gen then return end
+    if not g and (not card or card.host ~= sender) then return end
+    g = g or newGame(gid, sender)
+    self.games[gid] = g
+    g.owner, g.gen = sender, f.gen
+    g.joined = true
+    g.myBoard = f.board
+    g.createdAt = f.createdAt
+    g.roster[self.deps.me] = { board = f.board, canCall = f.canCall, bingoAt = f.bingoAt }
+    if card then g.title, g.audience = card.title, card.audience end
+    if g.itemsHash ~= f.itemsHash then g.items = nil; g.itemsHash = f.itemsHash end
+    if not g.items then self:requestItems(gid) end
+    -- We know our own board; the rest of the roster and the calls come in a snapshot.
+    self:requestSync(gid, true)
+    self:persist(gid)
+    return
+  end
+  if not g then return end
+  if sender ~= g.owner then return end
+  if t == "IT" then
+    if f.itemsHash == g.itemsHash then
+      g.items, g.title = f.items, f.title
+      self:persist(gid)
+    end
+  elseif t == "SN" then
+    if f.gen < g.gen then return end
+    self:applySnapshot(g, f)
+    if not g.items then self:requestItems(gid) end
+    self:persist(gid)
+  elseif SEQUENCED[t] then
+    if f.seq <= g.seq then return end
+    if f.seq == g.seq + 1 then
+      self:applyDelta(g, msg)
+      self:drain(g)
+    else
+      g.pending[f.seq] = msg
+      g.gapSince = g.gapSince or self.deps.now()
+    end
+    self:persist(gid)
+  end
+end
+
+function Mirror:onCard(gid, f, sender)
+  local card = self.cards[gid]
+  local g = self.games[gid]
+  if card and card.host ~= sender and f.gen <= card.gen then return end   -- someone else claiming this gid
+  if g and g.owner ~= sender and f.gen <= g.gen then return end
+  card = card or {}
+  for k, v in pairs(f) do card[k] = v end
+  card.host = sender
+  card.seen = self.deps.now()
+  card.away = false
+  card.callCount = countCalls(f.callMask)
+  self.cards[gid] = card
+  if g then
+    if f.gen > g.gen then g.gen, g.owner = f.gen, sender end
+    g.lastActivity = f.lastActivity
+    if f.state == "closed" and g.state ~= "closed" then g.state = "closed" end
+    if f.seq > g.seq then
+      self:requestSync(gid)
+    elseif f.seq == g.seq and f.callMask ~= Codec.callMask(g.calls) then
+      self:requestSync(gid)
+    end
+    if f.itemsHash ~= g.itemsHash then g.itemsHash = f.itemsHash; g.items = nil; self:requestItems(gid) end
+  end
+end
+
+function Mirror:noteNewer(ver)
+  if self.saidNewer then return end
+  self.saidNewer = true
+  self:log("a newer DEA Bingo is in use (protocol " .. tostring(ver) .. "); update to play in that game")
+end
+
+function Mirror:tick()
+  local now = self.deps.now()
+  for _, card in pairs(self.cards) do
+    card.away = (now - card.seen) > Mirror.CARD_TTL
+  end
+  for gid, g in pairs(self.games) do
+    -- A gap means a call went missing: ask now, and keep asking every
+    -- GAP_WAIT seconds until the snapshot closes it.
+    if g.gapSince and now - g.gapSince >= Mirror.GAP_WAIT then
+      self:requestSync(gid, true)
+      g.gapSince = now
+    end
+  end
+end
+
+-------------------------------------------------------------------- queries
+
+function Mirror:myState(gid)
+  local g = self.games[gid]
+  if not g or not g.myBoard then return nil end
+  local called = calledSet(g)
+  local me = g.roster[self.deps.me]
+  return {
+    board = g.myBoard, called = called,
+    bestLine = Logic.bestLineOf(g.myBoard, called),
+    hasBingo = Logic.hasBingo(g.myBoard, called),
+    winning = Logic.winningCells(g.myBoard, called),
+    bingoAt = me and me.bingoAt or nil,
+    canCall = g.owner == self.deps.me or (me and me.canCall) or false,
+    callCount = (function() local n = 0 for _ in pairs(g.calls) do n = n + 1 end return n end)(),
+  }
+end
+
+-- Winners first by time, then by how close everyone else is, then by name.
+function Mirror:standings(gid)
+  local g = self.games[gid]
+  if not g then return {} end
+  local called = calledSet(g)
+  local rows = {}
+  for name, e in pairs(g.roster) do
+    rows[#rows + 1] = { name = name, bestLine = Logic.bestLineOf(e.board, called), bingoAt = e.bingoAt, canCall = e.canCall or name == g.owner }
+  end
+  table.sort(rows, function(a, b)
+    if (a.bingoAt == nil) ~= (b.bingoAt == nil) then return a.bingoAt ~= nil end
+    if a.bingoAt and b.bingoAt and a.bingoAt ~= b.bingoAt then return a.bingoAt < b.bingoAt end
+    if a.bestLine ~= b.bestLine then return a.bestLine > b.bestLine end
+    return a.name < b.name
+  end)
+  return rows
+end
+
+function Mirror:itemText(gid, idx)
+  local g = self.games[gid]
+  if not g or not g.items then return nil end
+  return g.items[idx + 1]
+end
+
+-- Everything a new host needs to take over, or nil if items are missing.
+function Mirror:promote(gid)
+  local g = self.games[gid]
+  if not g or not g.items or g.owner ~= self.deps.me then return nil end
+  local roster = {}
+  for name, e in pairs(g.roster) do
+    roster[name] = { board = e.board, canCall = e.canCall, bingoAt = e.bingoAt, joinedAt = g.createdAt }
+  end
+  local calls = {}
+  for idx, t in pairs(g.calls) do calls[idx] = t end
+  return {
+    gid = gid, gen = g.gen, seq = g.seq, state = g.state, title = g.title, items = g.items,
+    itemsHash = g.itemsHash, owner = self.deps.me, audience = g.audience, createdAt = g.createdAt,
+    lastActivity = g.lastActivity, closedAt = g.closedAt, lastHeartbeat = 0, frozen = true,
+    roster = roster, calls = calls,
+  }
+end
+
+return Mirror
