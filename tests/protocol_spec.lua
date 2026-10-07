@@ -352,6 +352,24 @@ describe("resilience", function()
   end)
 end)
 
+describe("item cache", function()
+  it("fills items from the local cache instead of asking the host again", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local f = hub.clients[names[2]]
+    local cache = { [host.record.itemsHash] = { title = "Tuesday MC", items = host.record.items } }
+    hub:removeClient(names[2])
+    local again = hub:addClient(names[2], { guild = "DEA", group = "raid1" })
+    again.mirror.deps.lookupItems = function(hash) return cache[hash] end
+    again.mirror:hello(); hub:flush()
+    again.mirror:join(host.record.gid); hub:flush()
+    local asked = false
+    for _, m in ipairs(again.sent) do if m.payload:find("\31IQ\31", 1, true) then asked = true end end
+    assert.is_false(asked)
+    assert.are.same(host.record.items, again.mirror.games[host.record.gid].items)
+  end)
+end)
+
 describe("identity", function()
   it("learns its server-side name from the echo of its own hello", function()
     local hub = Hub.new()

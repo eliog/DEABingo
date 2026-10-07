@@ -9,6 +9,7 @@
     deps.channels()                     list of broadcast channels available now ("GUILD", "GROUP")
     deps.persist(gid, state)            optional, called after every change to a joined game
     deps.onCards()                      optional, called when the lobby cards change
+    deps.lookupItems(hash)              optional, returns a cached {title, items} for a hash
     deps.log(text)                      optional
 ]]
 
@@ -135,9 +136,20 @@ function Mirror:requestCall(gid, idx, undo)
   return true
 end
 
+-- Fill items from the local cache when this set has been seen before;
+-- otherwise ask the host. Saves the whisper and the first-paint lag.
 function Mirror:requestItems(gid)
   local g = self.games[gid]
   if not g or not g.itemsHash then return end
+  if self.deps.lookupItems then
+    local set = self.deps.lookupItems(g.itemsHash)
+    if set and type(set.items) == "table" and #set.items == Logic.ITEM_COUNT then
+      g.items = set.items
+      if set.title and set.title ~= "" then g.title = set.title end
+      self:persist(gid)
+      return
+    end
+  end
   self:emit("IQ", gid, { itemsHash = g.itemsHash }, "WHISPER", g.owner)
 end
 

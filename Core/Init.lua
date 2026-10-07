@@ -223,6 +223,7 @@ function App.setup()
     channels = function() return App.net:channels() end,
     persist = function(gid, g) App.store:saveJoined(gid, g); App.uiRefresh() end,
     onCards = function() App.uiRefresh() end,
+    lookupItems = function(hash) local set = App.store.db.itemSets[hash]; if type(set) == "table" then return set end end,
   })
   App.net.mirror = App.mirror
   App.hosts = {}
