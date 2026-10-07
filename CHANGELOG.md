@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.1.1-beta1 (2026-10-07)
 
-Fixes from the 2026-10-07 review (GitHub issues #1 to #35).
+Prerelease for guild testers: every fix from the 2026-10-07 review (GitHub issues #1 to #35).
 
 - Ownership and identity: no takeover by a higher generation, no identity replay, welcomes only after a join request.
 - Capacity: paged snapshots, a 120-player cap, items cached from the broadcast, retitle keeps items, rate buckets per role.
