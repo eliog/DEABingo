@@ -586,6 +586,43 @@ describe("ownership", function()
   end)
 end)
 
+describe("transfer", function()
+  it("hands the game over: the new host is told, takes over, and the old host's stale messages are ignored", function()
+    local hub, host, owner, names = guildNight(4)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local newHost, watcher = hub.clients[names[2]], hub.clients[names[3]]
+    local promoted = false
+    newHost.mirror.deps.onEvent = function(kind, info) if kind == "promote" and info.gid == gid then promoted = true end end
+    assert.is_true(host:transfer(names[2])); hub:flush()
+    assert.is_true(promoted, "the new host was not told")
+    -- the new host takes over from its replica; the old host becomes a follower of its own record
+    local record = newHost.mirror:promote(gid)
+    assert.is_truthy(record)
+    newHost.mirror:forget(gid)
+    local h2 = newHost:restoreHost(record)
+    owner.net:detachHost(gid)
+    local oldAsFollower = owner.mirror:adopt(host.record, names[1])
+    assert.is_true(oldAsFollower.joined)
+    assert.is_truthy(oldAsFollower.myBoard)
+    h2:heartbeat(); hub:flush()
+    -- the new host calls; everyone including the old host sees it
+    h2:call(7); hub:flush()
+    assert.is_truthy(watcher.mirror.games[gid].calls[7])
+    assert.is_truthy(owner.mirror.games[gid].calls[7])
+    -- the old host's stale Host object calls: nobody listens
+    host:call(8); hub:flush()
+    assert.is_nil(watcher.mirror.games[gid].calls[8])
+    assert.is_nil(h2.record.calls[8])
+    -- the old host, now a plain player, cannot call through the new host without being granted
+    owner.mirror:requestCall(gid, 9, false); hub:flush()
+    assert.is_nil(h2.record.calls[9])
+    assert.is_true(h2:grant(names[1], true)); hub:flush()
+    owner.mirror:requestCall(gid, 9, false); hub:flush()
+    assert.is_truthy(h2.record.calls[9])
+  end)
+end)
+
 describe("unsolicited welcomes", function()
   it("ignores a WE the player never asked for, and a late one", function()
     local hub, host, _, names = guildNight(3)

@@ -132,6 +132,18 @@ tickAll(1)
 run(beta, "call 5")
 tickAll(1)
 run(alpha, "standings")
+-- #14: hand the game over through the client glue, then the new host calls
+run(alpha, "transfer Dea Two")
+tickAll(2)
+do
+  local gid = beta.ns.App.current
+  assert(gid and beta.ns.App.hosts[gid], "beta did not become host")
+  assert(next(alpha.ns.App.hosts) == nil, "alpha still hosts")
+  assert(alpha.ns.App.mirror.games[gid] and alpha.ns.App.mirror.games[gid].joined, "alpha did not become a follower")
+  run(beta, "call 6")
+  tickAll(1)
+  assert(alpha.ns.App.currentView().called[5], "old host did not see the new host's call")
+end
 run(beta, "undo 5")
 tickAll(1)
 -- UI exercise on both clients: window views, board, chip, setup validation, combat dim

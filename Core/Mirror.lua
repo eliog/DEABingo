@@ -224,6 +224,7 @@ function Mirror:applyDelta(g, msg)
     g.transferTo = f.newHost
     g.owner = f.newHost
     if self.cards[g.gid] then self.cards[g.gid].host = f.newHost; self.cards[g.gid].owner = f.newHost end
+    if f.newHost == self.deps.me and self.deps.onEvent then self.deps.onEvent("promote", { gid = g.gid }) end
   end
 end
 
@@ -306,6 +307,7 @@ function Mirror:handle(msg, sender)
     -- change (a retitle rehashes) and start a round of re-requests.
     g.itemsHash, g.items, g.title = f.itemsHash, f.items, f.title
     self:persist(gid)
+    if self.deps.onEvent then self.deps.onEvent("items", { gid = gid }) end
   elseif t == "SN" then
     if f.gen < g.gen then return end
     -- Parts of one snapshot share seq; collect them, apply when complete.
@@ -471,6 +473,35 @@ function Mirror:itemText(gid, idx)
 end
 
 -- Everything a new host needs to take over, or nil if items are missing.
+-- The old host becomes a follower of the game it just handed over: a
+-- replica built from its own record, owned by the new host.
+function Mirror:adopt(record, me)
+  local g = newGame(record.gid, record.owner)
+  g.gen, g.seq, g.state, g.title = record.gen, record.seq, record.state, record.title
+  g.createdAt, g.lastActivity, g.closedAt = record.createdAt, record.lastActivity, record.closedAt
+  g.itemsHash, g.audience, g.items = record.itemsHash, record.audience, record.items
+  for name, e in pairs(record.roster) do g.roster[name] = { board = e.board, canCall = e.canCall, bingoAt = e.bingoAt } end
+  for idx, t in pairs(record.calls) do g.calls[idx] = t end
+  g.joined = true
+  g.myBoard = record.roster[me] and record.roster[me].board or nil
+  self.games[record.gid] = g
+  local n = 0 for _ in pairs(g.roster) do n = n + 1 end
+  local c = 0 for _ in pairs(g.calls) do c = c + 1 end
+  self.cards[record.gid] = {
+    host = record.owner, owner = record.owner, gen = record.gen, seq = record.seq, state = g.state == "closed" and "closed" or "open",
+    title = record.title, players = n, callCount = c, callMask = Codec.callMask(g.calls), lastActivity = record.lastActivity,
+    itemsHash = record.itemsHash, createdAt = record.createdAt, audience = record.audience, seen = self.deps.now(), away = false,
+  }
+  self:persist(record.gid)
+  return g
+end
+
+-- Drop a replica (after this client took the game over as host).
+function Mirror:forget(gid)
+  self.games[gid] = nil
+  if self.deps.persist then self.deps.persist(gid, nil) end
+end
+
 function Mirror:promote(gid)
   local g = self.games[gid]
   if not g or not g.items or g.owner ~= self.deps.me then return nil end

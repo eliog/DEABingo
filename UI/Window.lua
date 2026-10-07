@@ -236,7 +236,13 @@ local function buildGame(f)
     row:RegisterForClicks("RightButtonUp")
     row:SetScript("OnClick", function(self)
       local v = win.currentView
-      if v and v.isHost and self.player and self.player.name ~= v.owner then
+      if not (v and v.isHost and self.player and self.player.name ~= v.owner) then return end
+      if IsShiftKeyDown() then
+        local who = self.player.name
+        Window.confirm("HAND OVER THE GAME",
+          ("%s becomes the host: they call, grant calling and close. You keep your board and play on. This cannot be taken back without them handing it to you."):format(Logic.escape(self.player.shortName)),
+          "Hand it over", function() app.transfer(who) end)
+      else
         app.grant(self.player.name, not self.player.canCall)
       end
     end)
@@ -249,6 +255,7 @@ local function buildGame(f)
       if self.player.canCall then lines[#lines + 1] = "Can call squares" end
       if v and v.isHost and self.player.name ~= v.owner then
         lines[#lines + 1] = self.player.canCall and "Right-click to revoke calling" or "Right-click to let them call"
+        lines[#lines + 1] = "Shift-right-click to hand them the game"
       end
       return lines
     end)
@@ -796,6 +803,26 @@ function Window.init(callbacks)
   sh:Hide()
   win.sheetFrame = sh
 
+  -- A generic confirmation card for actions that cannot be taken back.
+  local cf = CreateFrame("Button", nil, win)
+  cf:SetAllPoints(win)
+  cf:SetFrameLevel((win:GetFrameLevel() or 0) + 22)
+  cf.scrim = W.rect(cf, "scrim"); cf.scrim:SetAllPoints()
+  cf:SetScript("OnClick", function() cf:Hide() end)
+  cf.card = W.panel(cf, "raised")
+  cf.card:SetSize(440, 190)
+  cf.card:SetPoint("CENTER", 0, 20)
+  cf.card:EnableMouse(true)
+  cf.card.eyebrow = W.text(cf.card, W.fonts().eyebrow, "inkFaint"); cf.card.eyebrow:SetPoint("TOPLEFT", 18, -16)
+  cf.card.text = W.text(cf.card, W.fonts().body, "ink"); cf.card.text:SetPoint("TOPLEFT", 18, -38); cf.card.text:SetPoint("TOPRIGHT", -18, -38)
+  cf.card.text:SetHeight(80); cf.card.text:SetJustifyV("TOP"); cf.card.text:SetWordWrap(true)
+  cf.card.confirm = W.button(cf.card, "", function() if cf.onConfirm then cf.onConfirm() end; cf:Hide() end, { width = 160, height = 30, primary = true })
+  cf.card.confirm:SetPoint("BOTTOMRIGHT", -16, 14)
+  cf.card.cancel = W.button(cf.card, "Cancel", function() cf:Hide() end, { width = 100, height = 30 })
+  cf.card.cancel:SetPoint("RIGHT", cf.card.confirm, "LEFT", -8, 0)
+  cf:Hide()
+  win.confirmFrame = cf
+
   win:SetScript("OnShow", function() Window.refresh(); if app.onShown then app.onShown() end end)
   win:SetScript("OnHide", function() sh:Hide() end)
   win:Hide()
@@ -803,6 +830,16 @@ function Window.init(callbacks)
 end
 
 -- Open the sheet for item idx (0-based) in the current game.
+function Window.confirm(eyebrow, text, label, fn)
+  if not win then return end
+  local cf = win.confirmFrame
+  cf.card.eyebrow:SetText(eyebrow)
+  cf.card.text:SetText(text)
+  cf.card.confirm:SetLabel(label)
+  cf.onConfirm = fn
+  cf:Show()
+end
+
 function Window.sheet(idx)
   local v = win and win.currentView
   if not v then return end

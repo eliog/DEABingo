@@ -390,6 +390,8 @@ end
 function App.onGameEvent(kind, info)
   if kind == "close" then App.archive(info.gid); App.uiRefresh(); return end
   if kind == "newGame" then App.announceGame(info); return end
+  if kind == "promote" then App.promote(info.gid); return end
+  if kind == "items" then if App.promotePending[info.gid] then App.promote(info.gid) end; return end
   if info.gid ~= App.current then return end
   local me = App.me()
   if kind == "call" then
@@ -561,6 +563,44 @@ function App.createGame(opts)
   return record
 end
 
+-- Hand the game to another player: they become the host, this client
+-- becomes a follower of its own former game.
+function App.transferGame(name)
+  local host = App.hosts[App.current]
+  if not host then return nil, "only the host can hand the game over" end
+  local full = App.normalize(name)
+  local okay, err = host:transfer(full)
+  if not okay then return nil, err end
+  local gid = host.record.gid
+  App.net:detachHost(gid)
+  App.hosts[gid] = nil
+  App.store:forgetHosted(gid)
+  App.mirror:adopt(host.record, App.me())
+  App.uiRefresh()
+  return true
+end
+
+-- The game was handed to us: take it over as host, once the items are here.
+App.promotePending = {}
+function App.promote(gid)
+  local record = App.mirror:promote(gid)
+  if not record then
+    App.promotePending[gid] = true
+    App.mirror:requestItems(gid)
+    return
+  end
+  App.promotePending[gid] = nil
+  local host = Host.restore(record, App.hostDeps())
+  App.hosts[gid] = host
+  App.net:attachHost(host)
+  App.store:saveHosted(record)
+  App.mirror:forget(gid)
+  App.current = gid
+  host:heartbeat()
+  print_(("you are now hosting \"%s\""):format(Logic.escape(record.title)))
+  App.uiRefresh()
+end
+
 function App.callSquare(idx, undo)
   local host, game = currentGame()
   if host then
@@ -592,6 +632,10 @@ App.ui = {
   grant = function(name, on)
     local host = currentGame()
     if host then host:grant(name, on) end
+  end,
+  transfer = function(name)
+    local okay, err = App.transferGame(name)
+    if not okay and err then print_(tostring(err)) end
   end,
   close = function()
     local host = currentGame()
@@ -670,7 +714,7 @@ commands.hide = function() if ns.Window and ns.Window.isShown() then ns.Window.t
 
 commands.help = function()
   print_("/dea new <title> | new raid <title> | items | item <n> <text> | open | list | join <n>")
-  print_("/dea board | call <n> | undo <n> | standings | grant <Name-Realm> | revoke <Name-Realm> | close")
+  print_("/dea board | call <n> | undo <n> | standings | grant <Name> | revoke <Name> | transfer <Name> | close")
   print_("/dea show | hide | sound | quiet | status | net | probe | reset | debug | test")
 end
 
@@ -833,6 +877,12 @@ commands.revoke = function(rest)
   if not host then print_("only the owner revokes calling"); return end
   local okay, err = host:grant(App.normalize(rest), false)
   print_(okay and (rest .. " can no longer call") or tostring(err))
+end
+
+commands.transfer = function(rest)
+  if rest == "" then print_("usage: /dea transfer <Name>"); return end
+  local okay, err = App.transferGame(rest)
+  print_(okay and ("handed the game to " .. rest) or tostring(err))
 end
 
 commands.close = function()
