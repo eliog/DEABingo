@@ -58,13 +58,22 @@ function App.me()
   if App.myName then return App.myName end
   local name = displayName("player")
   if not name then return nil end
-  if App.realmless() then
-    App.myName = stripRealm(name)
+  -- The name the server used for us last session beats any fresh guess,
+  -- as long as it is still plausibly this character.
+  local remembered = App.chardb and App.chardb.me
+  if type(remembered) == "string" and Logic.sameCharacter(remembered, name) then
+    App.myName = remembered
+    realm = remembered:match("%-([^%-]+)$") or realm
     return App.myName
   end
-  realm = realm or GetNormalizedRealmName()
-  if not realm then return nil end
-  if name:find("-", 1, true) then App.myName = name else App.myName = name .. "-" .. realm end
+  if App.realmless() then
+    App.myName = stripRealm(name)
+  else
+    realm = realm or GetNormalizedRealmName()
+    if not realm then return nil end
+    if name:find("-", 1, true) then App.myName = name else App.myName = name .. "-" .. realm end
+  end
+  if App.chardb then App.chardb.me = App.myName end
   return App.myName
 end
 
@@ -82,6 +91,7 @@ function App.learnMe(name)
   end
   App.myName = name
   realm = name:match("%-([^%-]+)$") or realm
+  if App.chardb then App.chardb.me = name end
   debug_(("the server calls me %s (was %s)"):format(name, tostring(old)))
   if not App.net then return end
   App.net.deps.me = name
@@ -446,7 +456,13 @@ function App.setup()
   })
   App.net.mirror = App.mirror
   App.hosts = {}
-  for _, record in ipairs(App.store:openHosted(me)) do
+  for _, record in ipairs(App.store:openHosted(me, Logic.sameCharacter)) do
+    if record.owner ~= me then
+      -- saved under an earlier form of our name: bring it in line
+      local old = record.owner
+      record.owner = me
+      if record.roster[old] and not record.roster[me] then record.roster[me] = record.roster[old]; record.roster[old] = nil end
+    end
     local host = Host.restore(record, App.hostDeps())
     App.hosts[record.gid] = host
     App.net:attachHost(host)
@@ -999,6 +1015,7 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
   if event == "ADDON_LOADED" and arg1 == ADDON then
     if type(DEABingoDB) ~= "table" then DEABingoDB = {} end
     if type(DEABingoCharDB) ~= "table" then DEABingoCharDB = {} end
+    App.chardb = DEABingoCharDB
     App.store = Store.new(DEABingoDB)
     DEABingoDB = App.store.db
     ns.db = App.store.db

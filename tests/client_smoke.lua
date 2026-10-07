@@ -44,14 +44,14 @@ package.path = "./?.lua;" .. package.path
 require("tests.widget_stub").install()
 local files = { "Core/Logic.lua", "Core/Codec.lua", "Core/Host.lua", "Core/Mirror.lua", "Core/Net.lua", "Core/Store.lua", "Core/View.lua", "Core/Presets.lua", "Core/Compat.lua", "UI/Theme.lua", "UI/Widgets.lua", "UI/Board.lua", "UI/Window.lua", "UI/Chip.lua", "UI/Toast.lua", "Core/Init.lua" }
 
-local function boot(myName)
+local function boot(myName, seedDB)
   local first = { Alpha = "Dea", Beta = "Dea" }
   local sur = { Alpha = "One", Beta = "Two" }
   local function who(unit) if unit == "player" then return myName end return ({ "Alpha", "Beta" })[tonumber(unit:match("%d+"))] end
   _G.UnitFullName = function(unit) local w = who(unit); return first[w], sur[w] end
   _G.UnitName = _G.UnitFullName
   _G.GetUnitName = function(unit, full) local w = who(unit); return first[w] .. " " .. sur[w] end
-  _G.DEABingoDB, _G.DEABingoCharDB = nil, nil
+  _G.DEABingoDB, _G.DEABingoCharDB = seedDB, nil
   _G.SlashCmdList = {}
   frames, handlers = {}, {}
   -- capture event frames created during load
@@ -73,7 +73,24 @@ local function boot(myName)
   return { ns = ns, slash = SlashCmdList.DEABINGO, handler = handlers[1], name = first[myName] .. " " .. sur[myName], full = first[myName] .. " " .. sur[myName] .. "-ClassicBetaPvE2" }
 end
 
-local alpha = boot("Alpha")
+-- #16: a game saved under an earlier form of the host's name resumes under the current one
+local seededBoard = {} for i = 0, 23 do seededBoard[#seededBoard + 1] = i end table.insert(seededBoard, 13, -1)
+local seedItems = {} for i = 1, 24 do seedItems[i] = "Seed " .. i end
+local seeded = { hosted = { seeded1 = {
+  gid = "seeded1", gen = 1, seq = 1, state = "open", title = "Seeded night", owner = "Dea One-ClassicBetaPvE2", audience = "R",
+  createdAt = 1699999000, lastActivity = 1699999000, lastHeartbeat = 0, items = seedItems, itemsHash = "seed01", frozen = false,
+  roster = { ["Dea One-ClassicBetaPvE2"] = { board = seededBoard, canCall = false, bingoAt = nil, joinedAt = 1699999000 } }, calls = {},
+} } }
+local alpha = boot("Alpha", seeded)
+do
+  local h = alpha.ns.App.hosts.seeded1
+  assert(h, "seeded game did not resume for the short name")
+  assert(h.record.owner == "Dea One", "owner not renamed: " .. tostring(h.record.owner))
+  assert(h.record.roster["Dea One"], "roster key not renamed")
+  assert(DEABingoCharDB.me == "Dea One", "learned name not remembered: " .. tostring(DEABingoCharDB.me))
+  h:close()   -- out of the way for the rest of the run
+  alpha.ns.App.current = nil
+end
 local beta = boot("Beta")
 local clients = { alpha, beta }
 
@@ -138,7 +155,7 @@ tickAll(2)
 do
   local gid = beta.ns.App.current
   assert(gid and beta.ns.App.hosts[gid], "beta did not become host")
-  assert(next(alpha.ns.App.hosts) == nil, "alpha still hosts")
+  assert(alpha.ns.App.hosts[gid] == nil, "alpha still hosts the transferred game")
   assert(alpha.ns.App.mirror.games[gid] and alpha.ns.App.mirror.games[gid].joined, "alpha did not become a follower")
   run(beta, "call 6")
   tickAll(1)
