@@ -401,6 +401,13 @@ function App.onGameEvent(kind, info)
   if kind == "close" then App.archive(info.gid); App.uiRefresh(); return end
   if kind == "newGame" then App.announceGame(info); return end
   if kind == "promote" then App.promote(info.gid); return end
+  if kind == "callLost" then
+    if info.gid == App.current then
+      App.toast({ text = "The host did not answer", sub = "Your call was not recorded. Try again when they are back.", accent = "gold", ttl = 10 })
+      App.uiRefresh()
+    end
+    return
+  end
   if kind == "items" then if App.promotePending[info.gid] then App.promote(info.gid) end; return end
   if info.gid ~= App.current then return end
   local me = App.me()

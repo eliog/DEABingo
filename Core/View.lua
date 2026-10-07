@@ -90,6 +90,7 @@ end
 
 function View.fromMirror(game, me, card)
   local v = {
+    pending = game.outstanding or {},
     gid = game.gid, title = game.title, state = game.state, owner = game.owner,
     ownerShort = View.shortName(game.owner), isHost = false,
     hostAway = card ~= nil and card.away == true,

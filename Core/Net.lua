@@ -36,6 +36,7 @@ local HOST_BOUND = { JN = true, CQ = true, IQ = true, SQ = true, NV = true }
 -- Token buckets: players may send 5 per 10 s, hosts 40 per 10 s (a join
 -- wave is one JD per joiner, and the host's own throttle paces it anyway).
 local PLAYER_BUCKET = { capacity = 5, refill = 0.5 }
+local CALLER_BUCKET = { capacity = 20, refill = 2 }   -- a granted caller of a game we host
 local HOST_BUCKET = { capacity = 40, refill = 4 }
 
 function Net.new(deps)
@@ -114,8 +115,19 @@ local function actionable(self, msg)
   return m.games[gid] ~= nil or m.cards[gid] ~= nil
 end
 
+-- A granted caller of a game this client hosts: after a wipe they may mark
+-- half a dozen squares in a few seconds.
+local function isCaller(self, sender, gid)
+  local host = gid and self.hosts[gid]
+  if not host then return false end
+  local e = host.record.roster[sender]
+  return e ~= nil and e.canCall == true
+end
+
 function Net:allow(sender, gid)
-  local rule = isKnownHost(self, sender, gid) and HOST_BUCKET or PLAYER_BUCKET
+  local rule = PLAYER_BUCKET
+  if isKnownHost(self, sender, gid) then rule = HOST_BUCKET
+  elseif isCaller(self, sender, gid) then rule = CALLER_BUCKET end
   local now = self.deps.now()
   local b = self.buckets[sender]
   if not b then

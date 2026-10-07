@@ -386,6 +386,40 @@ describe("items", function()
   end)
 end)
 
+describe("callers", function()
+  it("lets a granted caller fire seven calls in ten seconds and shows pending until the host answers", function()
+    local hub, host, _, names = guildNight(3)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local caller = hub.clients[names[2]]
+    assert.is_true(host:grant(names[2], true)); hub:flush()
+    for idx = 0, 6 do assert.is_true(caller.mirror:requestCall(gid, idx, false)) end
+    -- before delivery every request is pending on the caller's board
+    local st = caller.mirror:myState(gid)
+    local pendingCount = 0 for _ in pairs(st.pending) do pendingCount = pendingCount + 1 end
+    assert.are.equal(7, pendingCount)
+    hub:flush()
+    for idx = 0, 6 do assert.is_truthy(host.record.calls[idx], "call " .. idx .. " was dropped") end
+    st = caller.mirror:myState(gid)
+    assert.is_nil(next(st.pending), "pending did not clear once the calls came back")
+  end)
+
+  it("reports a request the host never answered", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local caller = hub.clients[names[2]]
+    host:grant(names[2], true); hub:flush()
+    local lost = {}
+    caller.mirror.deps.onEvent = function(kind, info) if kind == "callLost" then lost[#lost + 1] = info.idx end end
+    caller.mirror:requestCall(gid, 5, false)
+    hub:flush(function(m) return not m.payload:find("\31CQ\31", 1, true) end)   -- the request vanishes
+    hub:advance(Mirror.REQUEST_TIMEOUT + 1)
+    assert.are.same({ 5 }, lost)
+    assert.is_nil(next(caller.mirror:myState(gid).pending))
+  end)
+end)
+
 describe("flood limits", function()
   local function fakeCard(gid, owner, hub)
     return Codec.encode("GA", gid, { gen = 1, seq = 1, state = "open", title = "Spam " .. gid, owner = owner, players = 1,

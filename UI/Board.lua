@@ -172,6 +172,7 @@ function Board:SetView(view)
       local text = (items and item ~= nil) and items[item + 1] or (item ~= nil and ("#" .. (item + 1)) or "")
       local isCalled = item ~= nil and called[item] == true
       local isWinning = winning[p] == true
+      local isPending = item ~= nil and view and view.pending and view.pending[item] ~= nil
       c.called = isCalled
       W.setFont(c.text, isCalled and "bodyBold" or "body", self.fontSize)
       c.text:SetText(Logic.escape(text))   -- player text: a pipe must never become an escape code
@@ -183,6 +184,11 @@ function Board:SetView(view)
         Theme.set(c.face, "felWash"); W.borderRole(c.border, "fel")
         Theme.set(c.text, "ink"); Theme.set(c.strike, "fel"); Theme.set(c.check, "fel")
         c.topbar:Show(); c.strike:Show(); c.check:Show()
+      elseif isPending then
+        -- asked the host, no answer yet: a gold edge, nothing else changes
+        Theme.set(c.face, "raised"); W.borderRole(c.border, "gold")
+        Theme.set(c.text, "ink")
+        c.topbar:Hide(); c.strike:Hide(); c.check:Hide()
       else
         Theme.set(c.face, "raised"); W.borderRole(c.border, "line")
         Theme.set(c.text, "ink")

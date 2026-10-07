@@ -34,6 +34,7 @@ Mirror.MAX_CARDS_PER_HOST = 3
 Mirror.MAX_ROSTER = 200      -- roster entries per game (the snapshot cap)
 Mirror.MAX_PENDING = 64      -- buffered out-of-order deltas per game
 Mirror.MAX_EVENTS = 200      -- timeline entries kept per game
+Mirror.REQUEST_TIMEOUT = 5   -- seconds a call request may stay unanswered before it is reported lost
 Mirror.HELLO_GID = "0"
 
 local SEQUENCED = { JD = true, CL = true, UN = true, GR = true, TI = true, CX = true, TR = true }
@@ -119,7 +120,7 @@ local function newGame(gid, host)
     gid = gid, owner = host, gen = 0, seq = 0, state = "open", title = "", createdAt = 0,
     lastActivity = 0, closedAt = nil, itemsHash = nil, audience = "G", items = nil,
     roster = {}, calls = {}, joined = false, myBoard = nil, pending = {}, lastSyncReq = -math.huge,
-    gapSince = nil, events = {},
+    gapSince = nil, events = {}, outstanding = {},
   }
 end
 
@@ -152,6 +153,8 @@ function Mirror:requestCall(gid, idx, undo)
   local st = self:myState(gid)
   if not st or not st.canCall then return nil, "you are not a caller" end
   self.cqNonce = self.cqNonce + 1
+  g.outstanding = g.outstanding or {}
+  g.outstanding[idx] = { undo = undo == true, at = self.deps.now(), nonce = self.cqNonce }
   self:emit("CQ", gid, { idx = idx, undo = undo == true, nonce = self.cqNonce }, "WHISPER", g.owner)
   return true
 end
@@ -190,6 +193,7 @@ function Mirror:applyDelta(g, msg)
     trimEvents(g)
     if self.deps.onEvent then self.deps.onEvent("join", { gid = g.gid, name = f.name }) end
   elseif t == "CL" then
+    if g.outstanding then g.outstanding[f.idx] = nil end
     g.calls[f.idx] = f.t
     g.lastActivity = f.t
     for _, name in ipairs(f.winners) do
@@ -199,6 +203,7 @@ function Mirror:applyDelta(g, msg)
     trimEvents(g)
     if self.deps.onEvent then self.deps.onEvent("call", { gid = g.gid, idx = f.idx, winners = f.winners }) end
   elseif t == "UN" then
+    if g.outstanding then g.outstanding[f.idx] = nil end
     g.calls[f.idx] = nil
     g.lastActivity = f.t
     for _, name in ipairs(f.revoked) do
@@ -421,6 +426,12 @@ function Mirror:tick()
   end
   if changed and self.deps.onCards then self.deps.onCards() end
   for gid, g in pairs(self.games) do
+    for idx, req in pairs(g.outstanding or {}) do
+      if now - req.at >= Mirror.REQUEST_TIMEOUT then
+        g.outstanding[idx] = nil
+        if self.deps.onEvent then self.deps.onEvent("callLost", { gid = gid, idx = idx, undo = req.undo }) end
+      end
+    end
     -- A gap means a call went missing: ask now, and keep asking every
     -- GAP_WAIT seconds until the snapshot closes it.
     if g.gapSince and now - g.gapSince >= Mirror.GAP_WAIT then
@@ -445,6 +456,7 @@ function Mirror:myState(gid)
     bingoAt = me and me.bingoAt or nil,
     canCall = g.owner == self.deps.me or (me and me.canCall) or false,
     callCount = (function() local n = 0 for _ in pairs(g.calls) do n = n + 1 end return n end)(),
+    pending = g.outstanding or {},
   }
 end
 
