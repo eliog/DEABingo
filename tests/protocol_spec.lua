@@ -352,6 +352,62 @@ describe("resilience", function()
   end)
 end)
 
+describe("ownership", function()
+  it("ignores a higher generation from anyone the owner did not hand the game to", function()
+    local hub, host, _, names = guildNight(3)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local follower = hub.clients[names[3]]
+    local impostor = hub.clients[names[2]]     -- on the roster, but the host is alive
+    local card = function(gen, from) return Codec.encode("GA", gid, { gen = gen, seq = 99, state = "open", title = "Hijacked",
+      owner = from, players = 1, callMask = 0, lastActivity = hub:now(), itemsHash = "zzzzzz", createdAt = hub:now(), audience = "G" }) end
+    impostor.net:send(card(9999, names[2]), "GUILD"); hub:flush()
+    assert.are.equal(names[1], follower.mirror.games[gid].owner)
+    assert.are.equal(names[1], follower.mirror.cards[gid].host)
+    assert.are.equal("Tuesday MC", follower.mirror.cards[gid].title)
+    -- a forged welcome with a high gen changes nothing either
+    follower.mirror.joining[gid] = hub:now()
+    impostor.net:send(Codec.encode("WE", gid, { seq = 1, board = Logic.dealBoard(hub.rng), canCall = true, createdAt = hub:now(),
+      bingoAt = nil, itemsHash = "zzzzzz", gen = 9999 }), "WHISPER", names[3]); hub:flush()
+    assert.are.equal(names[1], follower.mirror.games[gid].owner)
+    assert.is_false(follower.mirror:myState(gid).canCall)
+    -- and a stranger's card for a gid nobody joined cannot replace the real host's card
+    local bystander = hub:addClient("Bystander-Pagle", { guild = "DEA", group = "raid1" })
+    bystander.mirror:hello(); hub:flush()
+    impostor.net:send(card(9999, names[2]), "GUILD"); hub:flush()
+    assert.are.equal(names[1], bystander.mirror.cards[gid].host)
+  end)
+
+  it("accepts the new host after a transfer, and a roster member only once the host is silent", function()
+    local hub, host, owner, names = guildNight(4)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local f3, watcher = hub.clients[names[3]], hub.clients[names[4]]
+    assert.is_true(host:transfer(names[2])); hub:flush()
+    assert.are.equal(names[2], f3.mirror.games[gid].owner)
+    -- the new host's first card, with the new gen, is accepted
+    local record = hub.clients[names[2]].mirror:promote(gid)
+    owner.net:detachHost(gid)
+    local h2 = hub.clients[names[2]]:restoreHost(record)
+    h2:heartbeat(); hub:flush()
+    assert.are.equal(names[2], f3.mirror.cards[gid].host)
+    assert.are.equal(2, f3.mirror.cards[gid].gen)
+    -- silent-host recovery: player 3 claims gen 3 while player 2 is still heartbeating: refused
+    f3.net:send(Codec.encode("GA", gid, { gen = 3, seq = h2.record.seq, state = "open", title = "Tuesday MC", owner = names[3],
+      players = 3, callMask = 0, lastActivity = hub:now(), itemsHash = h2.record.itemsHash, createdAt = h2.record.createdAt, audience = "G" }), "GUILD")
+    hub:flush()
+    assert.are.equal(names[2], watcher.mirror.games[gid].owner)
+    -- after the host goes quiet past the TTL, the same claim is accepted
+    hub:removeClient(names[2])
+    hub:advance(Mirror.CARD_TTL + 2)
+    f3.net:send(Codec.encode("GA", gid, { gen = 3, seq = h2.record.seq, state = "open", title = "Tuesday MC", owner = names[3],
+      players = 3, callMask = 0, lastActivity = hub:now(), itemsHash = h2.record.itemsHash, createdAt = h2.record.createdAt, audience = "G" }), "GUILD")
+    hub:flush()
+    assert.are.equal(names[3], watcher.mirror.games[gid].owner)
+    assert.are.equal(names[3], watcher.mirror.cards[gid].host)
+  end)
+end)
+
 describe("unsolicited welcomes", function()
   it("ignores a WE the player never asked for, and a late one", function()
     local hub, host, _, names = guildNight(3)

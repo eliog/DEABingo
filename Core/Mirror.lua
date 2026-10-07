@@ -197,6 +197,7 @@ function Mirror:applyDelta(g, msg)
     if self.deps.onEvent then self.deps.onEvent("close", { gid = g.gid }) end
   elseif t == "TR" then
     g.gen = f.gen
+    g.transferTo = f.newHost
     g.owner = f.newHost
     if self.cards[g.gid] then self.cards[g.gid].host = f.newHost; self.cards[g.gid].owner = f.newHost end
   end
@@ -286,11 +287,24 @@ function Mirror:handle(msg, sender)
   end
 end
 
+-- May `sender` take over a game currently owned by someone else? Only when
+-- the owner handed it to them (TR), or when they are already on the roster
+-- and the owner has been silent past the heartbeat timeout. A higher gen on
+-- its own proves nothing: anyone can type 9999.
+function Mirror:mayTakeOver(gid, sender, gen)
+  local card, g = self.cards[gid], self.games[gid]
+  local currentGen = (g and g.gen) or (card and card.gen) or 0
+  if gen <= currentGen then return false end
+  if g and g.transferTo == sender then return true end
+  if g and g.roster[sender] and card and card.away then return true end
+  return false
+end
+
 function Mirror:onCard(gid, f, sender)
   local card = self.cards[gid]
   local g = self.games[gid]
-  if card and card.host ~= sender and f.gen <= card.gen then return end   -- someone else claiming this gid
-  if g and g.owner ~= sender and f.gen <= g.gen then return end
+  local current = (g and g.owner) or (card and card.host)
+  if current and current ~= sender and not self:mayTakeOver(gid, sender, f.gen) then return end
   local isNew = card == nil
   card = card or {}
   for k, v in pairs(f) do card[k] = v end
