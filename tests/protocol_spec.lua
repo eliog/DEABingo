@@ -386,6 +386,20 @@ describe("items", function()
   end)
 end)
 
+describe("wire times", function()
+  it("replaces an absurd call time with the local clock", function()
+    local hub, host, owner, names = guildNight(2)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local f = hub.clients[names[2]]
+    owner.net:send(Codec.encode("CL", gid, { seq = host.record.seq + 1, idx = 4, t = 2 ^ 39, winners = {} }), "GUILD")
+    hub:flush()
+    local t = f.mirror.games[gid].calls[4]
+    assert.is_truthy(t)
+    assert.is_true(math.abs(t - hub:now()) <= 1)
+  end)
+end)
+
 describe("callers", function()
   it("lets a granted caller fire seven calls in ten seconds and shows pending until the host answers", function()
     local hub, host, _, names = guildNight(3)

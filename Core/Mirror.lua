@@ -35,6 +35,7 @@ Mirror.MAX_ROSTER = 200      -- roster entries per game (the snapshot cap)
 Mirror.MAX_PENDING = 64      -- buffered out-of-order deltas per game
 Mirror.MAX_EVENTS = 200      -- timeline entries kept per game
 Mirror.REQUEST_TIMEOUT = 5   -- seconds a call request may stay unanswered before it is reported lost
+Mirror.TIME_SKEW = 86400     -- a wire time further than this from now is replaced by now
 Mirror.HELLO_GID = "0"
 
 local SEQUENCED = { JD = true, CL = true, UN = true, GR = true, TI = true, CX = true, TR = true }
@@ -181,10 +182,22 @@ local function trimEvents(g)
   while #g.events > Mirror.MAX_EVENTS do table.remove(g.events, 1) end
 end
 
+-- Hosts' clocks are server-synced, so a time a day or more away from ours
+-- is garbage or malice; keep the event, use our clock for it.
+function Mirror:sane(t)
+  if t == nil then return nil end
+  local now = self.deps.now()
+  if math.abs(t - now) > Mirror.TIME_SKEW then return now end
+  return t
+end
+
 -- Apply one in-order delta. Only called with seq == g.seq + 1 (or from a snapshot).
 function Mirror:applyDelta(g, msg)
   local t, f = msg.type, msg.f
   g.seq = f.seq
+  if f.t then f.t = self:sane(f.t) end
+  if f.bingoAt then f.bingoAt = self:sane(f.bingoAt) end
+  if f.closedAt then f.closedAt = self:sane(f.closedAt) end
   if t == "JD" then
     local n = 0 for _ in pairs(g.roster) do n = n + 1 end
     if not g.roster[f.name] and n >= Mirror.MAX_ROSTER then return end
@@ -245,6 +258,9 @@ function Mirror:drain(g)
 end
 
 function Mirror:applySnapshot(g, f)
+  f.createdAt, f.lastActivity, f.closedAt = self:sane(f.createdAt), self:sane(f.lastActivity), self:sane(f.closedAt)
+  for _, row in ipairs(f.roster) do row.bingoAt = self:sane(row.bingoAt) end
+  for _, c in ipairs(f.calls) do c.t = self:sane(c.t) end
   g.gen, g.seq, g.state = f.gen, f.seq, f.state
   g.title, g.owner, g.createdAt = f.title, f.owner, f.createdAt
   g.lastActivity, g.closedAt, g.audience = f.lastActivity, f.closedAt, f.audience

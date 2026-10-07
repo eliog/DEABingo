@@ -287,7 +287,11 @@ function W.tooltip(frame, build)
 end
 
 -- Short clock from a server timestamp.
+-- Short clock from a server timestamp. Times come off the wire, so an
+-- absurd value must not become a Lua error in a UI handler.
 function W.clock(t)
-  if not t then return "" end
-  return date("%H:%M", t)
+  if type(t) ~= "number" then return "" end
+  local okay, s = pcall(date, "%H:%M", t)
+  if okay and type(s) == "string" then return s end
+  return ""
 end
