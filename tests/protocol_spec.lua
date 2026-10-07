@@ -353,6 +353,28 @@ describe("resilience", function()
   end)
 end)
 
+describe("items", function()
+  it("keeps every follower's items across a title change, with no re-request", function()
+    local hub, host, owner, names = guildNight(4)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local sentBefore = {}
+    for i = 2, 4 do sentBefore[i] = #hub.clients[names[i]].sent end
+    assert.is_true(host:setTitle("Wednesday MC"))
+    hub:flush()
+    hub:advance(Host.HEARTBEAT + 1)   -- a heartbeat with the new hash goes round
+    for i = 2, 4 do
+      local g = hub.clients[names[i]].mirror.games[gid]
+      assert.are.same(host.record.items, g.items, names[i] .. " lost its items")
+      assert.are.equal("Wednesday MC", g.title)
+      assert.are.equal(host.record.itemsHash, g.itemsHash)
+      for k = sentBefore[i] + 1, #hub.clients[names[i]].sent do
+        assert.is_nil(hub.clients[names[i]].sent[k].payload:find("\31IQ\31", 1, true), names[i] .. " re-requested items")
+      end
+    end
+  end)
+end)
+
 describe("ownership", function()
   it("ignores a higher generation from anyone the owner did not hand the game to", function()
     local hub, host, _, names = guildNight(3)

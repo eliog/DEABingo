@@ -273,10 +273,11 @@ function Mirror:handle(msg, sender)
   if not g then return end
   if sender ~= g.owner then return end
   if t == "IT" then
-    if f.itemsHash == g.itemsHash then
-      g.items, g.title = f.items, f.title
-      self:persist(gid)
-    end
+    -- The owner is the only writer, so whatever items they send are the
+    -- items. Matching the hash we already hold would drop a legitimate
+    -- change (a retitle rehashes) and start a round of re-requests.
+    g.itemsHash, g.items, g.title = f.itemsHash, f.items, f.title
+    self:persist(gid)
   elseif t == "SN" then
     if f.gen < g.gen then return end
     self:applySnapshot(g, f)
