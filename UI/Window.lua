@@ -119,7 +119,7 @@ local function buildFooter(f)
   b.text:SetPoint("LEFT", PAD, 0)
   b.text:SetPoint("RIGHT", -160, 0)
   b.action = W.button(b, "", nil, { width = 130, height = 26 })
-  b.action:SetPoint("RIGHT", -PAD, 0)
+  b.action:SetPoint("RIGHT", -(PAD + 24), 0)   -- room for the resize grip
   b.action:Hide()
   return b
 end
@@ -678,12 +678,22 @@ function Window.init(callbacks)
   win.views = { game = buildGame(win), lobby = buildLobby(win), setup = buildSetup(win), history = buildHistory(win), options = buildOptions(win) }
   hideAll(win.views)
 
-  -- resize grip
+  -- resize grip: a generous corner target with two diagonal hairlines
   win.grip = CreateFrame("Button", nil, win)
-  win.grip:SetSize(16, 16)
-  win.grip:SetPoint("BOTTOMRIGHT", -3, 3)
-  win.grip.tex = win.grip:CreateTexture(nil, "OVERLAY"); Theme.register(win.grip.tex, "inkFaint", "bg")
-  win.grip.tex:SetSize(10, W.px(2)); win.grip.tex:SetPoint("BOTTOMRIGHT", -1, 4); win.grip.tex:SetRotation(math.rad(-45))
+  win.grip:SetSize(26, 26)
+  win.grip:SetPoint("BOTTOMRIGHT", -2, 2)
+  win.grip.lines = {}
+  for i, len in ipairs({ 14, 8 }) do
+    local t = win.grip:CreateTexture(nil, "OVERLAY")
+    Theme.register(t, "inkFaint", "bg")
+    t:SetSize(len, W.px(2))
+    t:SetPoint("BOTTOMRIGHT", -3 - (i - 1) * 2, 4 + (i - 1) * 4)
+    t:SetRotation(math.rad(-45))
+    win.grip.lines[i] = t
+  end
+  win.grip:SetScript("OnEnter", function(self) for _, t in ipairs(self.lines) do Theme.set(t, "gold") end end)
+  win.grip:SetScript("OnLeave", function(self) for _, t in ipairs(self.lines) do Theme.set(t, "inkFaint") end end)
+  W.tooltip(win.grip, function() return { "Drag to resize" } end)
   win.grip:SetScript("OnMouseDown", function() win:StartSizing("BOTTOMRIGHT") end)
   win.grip:SetScript("OnMouseUp", function()
     win:StopMovingOrSizing()
