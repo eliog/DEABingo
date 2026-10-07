@@ -64,6 +64,7 @@ local function newCell(board, position)
   c.topbar:Hide()
 
   c.text = c:CreateFontString(nil, "OVERLAY")
+  c.text:SetFontObject(W.fonts().body)   -- a font before any SetText, or the client errors
   c.text:SetPoint("TOPLEFT", Board.INSET, -Board.INSET)
   c.text:SetPoint("BOTTOMRIGHT", -Board.INSET, Board.INSET)
   c.text:SetJustifyH("CENTER"); c.text:SetJustifyV("MIDDLE")
@@ -193,25 +194,23 @@ function Board:SetView(view)
       local item = board and board[p] or nil
       c.item = item
       local text = (items and item ~= nil) and items[item + 1] or (item ~= nil and ("#" .. (item + 1)) or "")
-      c.text:SetText(text)
       local isCalled = item ~= nil and called[item] == true
       local isWinning = winning[p] == true
       c.called = isCalled
+      W.setFont(c.text, isCalled and "bodyBold" or "body", self.fontSize)
+      c.text:SetText(text)
       if isWinning then
         Theme.set(c.face, "fel"); W.borderRole(c.border, "fel")
         Theme.set(c.text, "felInk"); Theme.set(c.strike, "felInk"); Theme.set(c.check, "felInk")
         c.topbar:Hide(); c.strike:Show(); c.check:Show()
-        W.setFont(c.text, "bodyBold", self.fontSize)
       elseif isCalled then
         Theme.set(c.face, "felWash"); W.borderRole(c.border, "fel")
         Theme.set(c.text, "ink"); Theme.set(c.strike, "fel"); Theme.set(c.check, "fel")
         c.topbar:Show(); c.strike:Show(); c.check:Show()
-        W.setFont(c.text, "bodyBold", self.fontSize)
       else
         Theme.set(c.face, "raised"); W.borderRole(c.border, "line")
         Theme.set(c.text, "ink")
         c.topbar:Hide(); c.strike:Hide(); c.check:Hide()
-        W.setFont(c.text, "body", self.fontSize)
       end
     end
   end
