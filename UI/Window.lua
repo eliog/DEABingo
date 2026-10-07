@@ -310,8 +310,7 @@ local function buildGame(f)
   g.log.caller = scrollList(g.log, 22, function(parent)
     local row = CreateFrame("Button", nil, parent)
     row.hover = W.rect(row, "raised", "BACKGROUND"); row.hover:SetAllPoints(); row.hover:Hide()
-    row.mark = row:CreateTexture(nil, "ARTWORK"); row.mark:SetSize(6, 6); row.mark:SetPoint("LEFT", 4, 0); row.mark:SetRotation(math.rad(45))
-    Theme.register(row.mark, "fel", "bg"); row.mark:Hide()
+    row.mark = W.diamond(row, 8, "fel", "ARTWORK"); row.mark:SetPoint("LEFT", 3, 0); row.mark:Hide()
     row.text = W.text(row, W.fonts().body, "ink"); row.text:SetPoint("LEFT", 16, 0); row.text:SetPoint("RIGHT", -46, 0)
     row.text:SetWordWrap(false)
     row.time = W.text(row, W.fonts().small, "fel", "RIGHT"); row.time:SetPoint("RIGHT", -2, 0); row.time:SetWidth(42)
@@ -727,15 +726,10 @@ function Window.init(callbacks)
   win.grip = CreateFrame("Button", nil, win)
   win.grip:SetSize(26, 26)
   win.grip:SetPoint("BOTTOMRIGHT", -2, 2)
-  win.grip.lines = {}
-  for i, len in ipairs({ 14, 8 }) do
-    local t = win.grip:CreateTexture(nil, "OVERLAY")
-    Theme.register(t, "inkFaint", "bg")
-    t:SetSize(len, W.px(2))
-    t:SetPoint("BOTTOMRIGHT", -3 - (i - 1) * 2, 4 + (i - 1) * 4)
-    t:SetRotation(math.rad(-45))
-    win.grip.lines[i] = t
-  end
+  win.grip.lines = {
+    W.line(win.grip, -8, -8, 8, 8, "inkFaint", 2, "OVERLAY"),
+    W.line(win.grip, -2, -8, 8, 2, "inkFaint", 2, "OVERLAY"),
+  }
   win.grip:SetScript("OnEnter", function(self) for _, t in ipairs(self.lines) do Theme.set(t, "gold") end end)
   win.grip:SetScript("OnLeave", function(self) for _, t in ipairs(self.lines) do Theme.set(t, "inkFaint") end end)
   W.tooltip(win.grip, function() return { "Drag to resize" } end)

@@ -87,6 +87,26 @@ function W.crest(parent, size, layer)
   return t
 end
 
+-- A small diamond mark, tinted. A real texture: rotating a colour texture
+-- turns its sampling, not its quad, so it would stay a square on screen.
+function W.diamond(parent, size, role, layer)
+  local t = parent:CreateTexture(nil, layer or "OVERLAY")
+  t:SetTexture(MEDIA_ROOT .. "diamond.tga")
+  t:SetSize(size, size)
+  Theme.register(t, role or "fel", "vertex")
+  return t
+end
+
+-- A hairline between two points relative to the parent's centre.
+function W.line(parent, x1, y1, x2, y2, role, thickness, layer)
+  local l = parent:CreateLine(nil, layer or "ARTWORK")
+  l:SetStartPoint("CENTER", parent, x1, y1)
+  l:SetEndPoint("CENTER", parent, x2, y2)
+  l:SetThickness(W.px(thickness or 2))
+  Theme.register(l, role or "inkDim", "bg")
+  return l
+end
+
 -------------------------------------------------------------- primitives
 
 function W.rect(parent, role, layer, alpha)
@@ -174,15 +194,12 @@ function W.button(parent, label, onClick, opts)
   return b
 end
 
--- A small square "X" close button drawn with two hairlines.
+-- A small "X" close button drawn with two diagonal lines.
 function W.closeButton(parent, onClick)
   local b = CreateFrame("Button", nil, parent)
   b:SetSize(22, 22)
-  local a = b:CreateTexture(nil, "ARTWORK"); Theme.register(a, "inkDim", "bg")
-  local c = b:CreateTexture(nil, "ARTWORK"); Theme.register(c, "inkDim", "bg")
-  a:SetSize(14, W.px(2)); c:SetSize(14, W.px(2))
-  a:SetPoint("CENTER"); c:SetPoint("CENTER")
-  a:SetRotation(math.rad(45)); c:SetRotation(math.rad(-45))
+  local a = W.line(b, -5, 5, 5, -5, "inkDim")
+  local c = W.line(b, -5, -5, 5, 5, "inkDim")
   b:SetScript("OnEnter", function() Theme.set(a, "ink"); Theme.set(c, "ink") end)
   b:SetScript("OnLeave", function() Theme.set(a, "inkDim"); Theme.set(c, "inkDim") end)
   b:SetScript("OnClick", onClick)
