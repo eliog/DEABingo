@@ -27,6 +27,7 @@ ns.Mirror = Mirror
 
 Mirror.CARD_TTL = 90         -- seconds without a heartbeat before "host away"
 Mirror.GAP_WAIT = 3          -- seconds to wait for an out-of-order delta before asking
+Mirror.GAP_WAIT_MAX = 60     -- the back-off ceiling while the gap persists
 Mirror.SYNC_COOLDOWN = 10    -- seconds between sync requests per game
 Mirror.JOIN_WINDOW = 30      -- a WE is honoured only this long after our own JN
 Mirror.MAX_CARDS = 50        -- lobby cards kept
@@ -256,6 +257,7 @@ function Mirror:drain(g)
   -- Anything older than what we now have is noise.
   for seq in pairs(g.pending) do if seq <= g.seq then g.pending[seq] = nil end end
   g.gapSince = next(g.pending) and (g.gapSince or self.deps.now()) or nil
+  if not g.gapSince then g.gapWait = nil end   -- gap closed: back-off resets
 end
 
 function Mirror:applySnapshot(g, f)
@@ -455,11 +457,13 @@ function Mirror:tick()
         if self.deps.onEvent then self.deps.onEvent("callLost", { gid = gid, idx = idx, undo = req.undo }) end
       end
     end
-    -- A gap means a call went missing: ask now, and keep asking every
-    -- GAP_WAIT seconds until the snapshot closes it.
-    if g.gapSince and now - g.gapSince >= Mirror.GAP_WAIT then
-      self:requestSync(gid, true)
+    -- A gap means a call went missing: ask, then back off, and never
+    -- whisper a host whose heartbeat has stopped.
+    if g.gapSince and now - g.gapSince >= (g.gapWait or Mirror.GAP_WAIT) then
+      local card = self.cards[gid]
+      if not (card and card.away) then self:requestSync(gid, true) end
       g.gapSince = now
+      g.gapWait = math.min(Mirror.GAP_WAIT_MAX, (g.gapWait or Mirror.GAP_WAIT) * 2)
     end
   end
 end

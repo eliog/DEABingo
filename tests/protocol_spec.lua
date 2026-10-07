@@ -386,6 +386,27 @@ describe("items", function()
   end)
 end)
 
+describe("sync back-off", function()
+  it("asks less and less, and not at all while the host is away", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local f = hub.clients[names[2]]
+    host:call(1)
+    hub:flush(function(m) return not m.payload:find("\31CL\31", 1, true) end)
+    host:call(2); hub:flush()   -- a gap now exists
+    hub:removeClient(names[1])  -- and the host vanishes
+    local function syncs() local n = 0 for _, m in ipairs(f.sent) do if m.payload:find("\31SQ\31", 1, true) then n = n + 1 end end return n end
+    local before = syncs()
+    hub:advance(Mirror.CARD_TTL)        -- host not yet marked away: a few requests, backing off
+    local during = syncs() - before
+    assert.is_true(during >= 2 and during <= 6, "expected a handful of backed-off requests, got " .. during)
+    local atAway = syncs()
+    hub:advance(300)                    -- host away: silence
+    assert.are.equal(atAway, syncs(), "kept whispering an absent host")
+  end)
+end)
+
 describe("closing", function()
   it("tells lobbies that never joined, answers late hellos, and expires the card", function()
     local hub, host, owner, names = guildNight(2)
