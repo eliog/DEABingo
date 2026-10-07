@@ -78,11 +78,13 @@ local function newCell(board, position)
   c.strike:SetPoint("LEFT", Board.INSET + 2, 0); c.strike:SetPoint("RIGHT", -(Board.INSET + 2), 0)
   c.strike:Hide()
 
-  c.check = c:CreateFontString(nil, "OVERLAY")
-  c.check:SetFontObject(W.fonts().eyebrow)
-  c.check:SetPoint("BOTTOMRIGHT", -5, 4)
-  c.check:SetText("✓")
-  Theme.register(c.check, "fel", "text")
+  -- The third signal of a called square: a small diamond in the corner.
+  -- Drawn, not a glyph; the shipped fonts have no check mark.
+  c.check = c:CreateTexture(nil, "OVERLAY", nil, 3)
+  c.check:SetSize(7, 7)
+  c.check:SetPoint("BOTTOMRIGHT", -6, 6)
+  c.check:SetRotation(math.rad(45))
+  Theme.register(c.check, "fel", "bg")
   c.check:Hide()
 
   c:SetScript("OnEnter", function(self)
