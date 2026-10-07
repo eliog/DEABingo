@@ -42,7 +42,7 @@ end
 
 package.path = "./?.lua;" .. package.path
 require("tests.widget_stub").install()
-local files = { "Core/Logic.lua", "Core/Codec.lua", "Core/Host.lua", "Core/Mirror.lua", "Core/Net.lua", "Core/Store.lua", "Core/View.lua", "Core/Presets.lua", "Core/Compat.lua", "UI/Theme.lua", "UI/Widgets.lua", "UI/Board.lua", "UI/Window.lua", "UI/Chip.lua", "Core/Init.lua" }
+local files = { "Core/Logic.lua", "Core/Codec.lua", "Core/Host.lua", "Core/Mirror.lua", "Core/Net.lua", "Core/Store.lua", "Core/View.lua", "Core/Presets.lua", "Core/Compat.lua", "UI/Theme.lua", "UI/Widgets.lua", "UI/Board.lua", "UI/Window.lua", "UI/Chip.lua", "UI/Toast.lua", "Core/Init.lua" }
 
 local function boot(myName)
   local first = { Alpha = "Dea", Beta = "Dea" }
@@ -109,6 +109,14 @@ run(alpha, "new Tuesday MC")
 run(alpha, "item 3 Someone forgets the buff")
 run(alpha, "open")
 run(beta, "list")
+-- beta should have been offered the game by a toast with a Join button
+do
+  local toast = beta.ns.Toast
+  assert(toast, "toast module missing")
+  local t = toast.show({ text = "probe", action = { label = "Join", fn = function() end } })
+  assert(t and t.__shown, "toast did not show")
+  t.action.__scripts.OnClick(t.action)
+end
 run(beta, "join 1")
 tickAll(4)
 run(beta, "status")

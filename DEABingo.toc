@@ -28,4 +28,5 @@ UI\Widgets.lua
 UI\Board.lua
 UI\Window.lua
 UI\Chip.lua
+UI\Toast.lua
 Core\Init.lua

@@ -221,16 +221,59 @@ function App.playSound(kind)
   if id then pcall(PlaySound, id, "Master") end
 end
 
--- Game events from the host or the mirror, for this client's game only.
+-------------------------------------------------------------------- toasts
+
+-- Toasts never interrupt a pull: in combat they wait for PLAYER_REGEN_ENABLED.
+App.pendingToasts = {}
+function App.toast(opts)
+  if not ns.Toast then return end
+  if App.inCombat() then App.pendingToasts[#App.pendingToasts + 1] = opts; return end
+  ns.Toast.show(opts)
+end
+
+function App.flushToasts()
+  local queue = App.pendingToasts
+  App.pendingToasts = {}
+  for _, opts in ipairs(queue) do if ns.Toast then ns.Toast.show(opts) end end
+end
+
+-- A game has opened near us: say so once per game, with a Join button.
+function App.announceGame(info)
+  if info.state ~= "open" or info.owner == App.me() then return end
+  local seen = App.store.db.seenGames
+  if seen[info.gid] then return end
+  seen[info.gid] = GetServerTime()
+  -- keep the set small
+  local n = 0 for _ in pairs(seen) do n = n + 1 end
+  if n > 200 then
+    local oldest, oldestAt
+    for gid, at in pairs(seen) do if not oldestAt or at < oldestAt then oldest, oldestAt = gid, at end end
+    seen[oldest] = nil
+  end
+  App.toast({
+    text = Logic.escape(info.title or "Raid Bingo"),
+    sub = View.shortName(info.owner) .. " opened a game",
+    ttl = 60,
+    action = { label = "Join", fn = function() App.ui.join(info.gid) end },
+  })
+end
+
+-- Game events from the host or the mirror.
 function App.onGameEvent(kind, info)
   if kind == "close" then App.archive(info.gid); App.uiRefresh(); return end
+  if kind == "newGame" then App.announceGame(info); return end
   if info.gid ~= App.current then return end
   local me = App.me()
   if kind == "call" then
     if ns.Chip then ns.Chip.flash() end
-    local mine = false
-    for _, name in ipairs(info.winners or {}) do if name == me then mine = true end end
+    local mine, others = false, {}
+    for _, name in ipairs(info.winners or {}) do
+      if name == me then mine = true else others[#others + 1] = View.shortName(name) end
+    end
     App.playSound(mine and "bingo" or "call")
+    if #others > 0 then
+      App.toast({ text = table.concat(others, ", ") .. (#others == 1 and " has BINGO" or " have BINGO"), sub = "Standings updated", accent = "gold", ttl = 10 })
+    end
   elseif kind == "undo" then
     App.playSound("undo")
   elseif kind == "close" then
@@ -287,6 +330,7 @@ function App.setup()
     ns.Window.init(App.ui)
     ns.Chip.init(App.chipUi)
     ns.Chip.applyOptions(App.store.db.options)
+    if ns.Toast then ns.Toast.init() end
     App.uiRefresh()
   end
   return true
@@ -782,6 +826,7 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
     if ns.Window then ns.Window.setCombat(true) end
   elseif event == "PLAYER_REGEN_ENABLED" then
     if ns.Window then ns.Window.setCombat(false) end
+    App.flushToasts()
   end
 end)
 

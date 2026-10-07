@@ -10,7 +10,8 @@
     deps.persist(gid, state)            optional, called after every change to a joined game
     deps.onCards()                      optional, called when the lobby cards change
     deps.lookupItems(hash)              optional, returns a cached {title, items} for a hash
-    deps.onEvent(kind, info)            optional: "call" {gid, idx, winners}, "undo" {gid, idx, revoked}, "join" {gid, name}
+    deps.onEvent(kind, info)            optional: "call" {gid, idx, winners}, "undo" {gid, idx, revoked}, "join" {gid, name},
+                                        "newGame" {gid, title, owner, state} the first time a host's card is heard
     deps.log(text)                      optional
 ]]
 
@@ -283,6 +284,7 @@ function Mirror:onCard(gid, f, sender)
   local g = self.games[gid]
   if card and card.host ~= sender and f.gen <= card.gen then return end   -- someone else claiming this gid
   if g and g.owner ~= sender and f.gen <= g.gen then return end
+  local isNew = card == nil
   card = card or {}
   for k, v in pairs(f) do card[k] = v end
   card.host = sender
@@ -306,6 +308,9 @@ function Mirror:onCard(gid, f, sender)
     if f.itemsHash ~= g.itemsHash then g.itemsHash = f.itemsHash; g.items = nil; self:requestItems(gid) end
   end
   if self.deps.onCards then self.deps.onCards() end
+  if isNew and self.deps.onEvent then
+    self.deps.onEvent("newGame", { gid = gid, title = f.title, owner = sender, state = f.state })
+  end
 end
 
 function Mirror:noteNewer(ver)

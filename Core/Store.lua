@@ -29,7 +29,7 @@ end
 function Store.shape(db)
   if type(db) ~= "table" then db = {} end
   if type(db.schema) ~= "number" then db.schema = 0 end
-  for _, key in ipairs({ "options", "itemSets", "history", "hosted", "joined" }) do
+  for _, key in ipairs({ "options", "itemSets", "history", "hosted", "joined", "seenGames" }) do
     if type(db[key]) ~= "table" then db[key] = {} end
   end
   db.schema = Store.SCHEMA

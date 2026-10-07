@@ -366,6 +366,20 @@ describe("game events", function()
   end)
 end)
 
+describe("new game announcements", function()
+  it("fires once when a host's card is first heard, not on every heartbeat", function()
+    local hub = Hub.new()
+    hub:addClient("Owner-Pagle", { guild = "DEA", group = "raid1" })
+    local f = hub:addClient("Dorn-Pagle", { guild = "DEA", group = "raid1" })
+    local seen = {}
+    f.mirror.deps.onEvent = function(kind, info) if kind == "newGame" then seen[#seen + 1] = info.title end end
+    local host = hub.clients["Owner-Pagle"]:host({ title = "Tuesday MC", items = items(), audience = "G" })
+    host:open(); hub:flush()
+    hub:advance(Host.HEARTBEAT * 2 + 2)
+    assert.are.same({ "Tuesday MC" }, seen)
+  end)
+end)
+
 describe("item cache", function()
   it("fills items from the local cache instead of asking the host again", function()
     local hub, host, _, names = guildNight(2)
