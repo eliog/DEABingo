@@ -704,45 +704,59 @@ local function buildOptions(f)
   o.head = W.text(o, W.fonts().eyebrow, "inkFaint")
   o.head:SetPoint("TOPLEFT", PAD + 2, -PAD - 4)
   o.head:SetText("OPTIONS")
-  o.rows = {}
-  local y = -(PAD + 30)
-  for i, def in ipairs(OPTIONS) do
-    local row = CreateFrame("Frame", nil, o)
-    row:SetPoint("TOPLEFT", PAD, y); row:SetPoint("RIGHT", -PAD, 0); row:SetHeight(54)
+  -- The rows scroll: at the minimum window height they are taller than the panel.
+  o.list = scrollList(o, 58, function(parent)
+    local row = CreateFrame("Frame", nil, parent)
     row.rule = row:CreateTexture(nil, "BORDER"); Theme.register(row.rule, "line", "bg")
     row.rule:SetPoint("BOTTOMLEFT"); row.rule:SetPoint("BOTTOMRIGHT"); row.rule:SetHeight(W.px(1))
-    row.label = W.text(row, W.fonts().bodyBold, "ink"); row.label:SetPoint("TOPLEFT", 2, -10); row.label:SetText(def.label)
-    row.hint = W.text(row, W.fonts().small, "inkFaint"); row.hint:SetPoint("BOTTOMLEFT", 2, 10); row.hint:SetPoint("RIGHT", -220, 0); row.hint:SetText(def.hint)
+    row.label = W.text(row, W.fonts().bodyBold, "ink"); row.label:SetPoint("TOPLEFT", 2, -10)
+    row.hint = W.text(row, W.fonts().small, "inkFaint"); row.hint:SetPoint("BOTTOMLEFT", 2, 10); row.hint:SetPoint("RIGHT", -220, 0)
+    row.actionButton = W.button(row, "", function()
+      local def = row.def
+      local run = function() app.action(def.key); Window.refresh() end
+      if def.confirm then Window.confirm(def.confirm[1], def.confirm[2], def.confirm[3], run) else run() end
+    end, { width = 110, height = 26 })
+    row.actionButton:SetPoint("RIGHT", 0, 0)
+    row.values = {}     -- value buttons, made as needed
+    row.buttons = {}    -- the value buttons in use for this row's option
+    return row
+  end)
+  o.list:SetPoint("TOPLEFT", PAD, -(PAD + 30))
+  o.list:SetPoint("BOTTOMRIGHT", -PAD, PAD)
+  local function fill(row, def)
+    row.def = def
+    row.label:SetText(def.label)
+    row.hint:SetText(def.hint)
+    row.actionButton:Hide(); row.action = nil
+    for _, b in ipairs(row.values) do b:Hide() end
     row.buttons = {}
     if def.kind == "action" then
-      local b = W.button(row, def.button, function()
-        local run = function() app.action(def.key); Window.refresh() end
-        if def.confirm then Window.confirm(def.confirm[1], def.confirm[2], def.confirm[3], run) else run() end
-      end, { width = 110, height = 26 })
-      b:SetPoint("RIGHT", 0, 0)
-      row.action = b
+      row.actionButton:SetLabel(def.button); row.actionButton:Show()
+      row.action = row.actionButton
     else
       local choices = def.kind == "choice" and def.choices or { { true, "On" }, { false, "Off" } }
       local x = 0
       for j = #choices, 1, -1 do
-        local value, label = choices[j][1], choices[j][2]
-        local b = W.button(row, label, function() app.setOption(def.key, value); Window.refresh() end, { width = 86, height = 26 })
-        b:SetPoint("RIGHT", -x, 0)
-        b.value = value
+        local k = #choices - j + 1
+        local b = row.values[k]
+        if not b then
+          b = W.button(row, "", function(self) app.setOption(row.def.key, self.value); Window.refresh() end, { width = 86, height = 26 })
+          row.values[k] = b
+        end
+        b:SetLabel(choices[j][2]); b.value = choices[j][1]
+        b:ClearAllPoints(); b:SetPoint("RIGHT", -x, 0); b:Show()
         row.buttons[#row.buttons + 1] = b
         x = x + 92
       end
     end
-    row.def = def
-    o.rows[i] = row
-    y = y - 58
+    local current = app.option(def.key)
+    if current == nil then current = def.default end
+    for _, b in ipairs(row.buttons) do b:SetSelected(b.value == current) end
   end
+  o.rows = {}
   function o:Refresh()
-    for _, row in ipairs(self.rows) do
-      local current = app.option(row.def.key)
-      if current == nil then current = row.def.default end
-      for _, b in ipairs(row.buttons) do b:SetSelected(b.value == current) end
-    end
+    self.list:Fill(OPTIONS, fill)
+    self.rows = self.list.rows
   end
   return o
 end
@@ -815,6 +829,7 @@ function Window.init(callbacks)
   win:SetScript("OnSizeChanged", function()
     if win.views.game:IsShown() then win.views.game.board:Layout() end
     if win.views.setup:IsShown() then win.views.setup:LayoutGrid() end
+    if win.views.options:IsShown() then win.views.options:Refresh() end
   end)
 
   -- The sheet: a modal card over the window for one square.

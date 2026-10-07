@@ -4,6 +4,7 @@
 
 - Update notice: players hear once per session when a newer release is around, and a release can set a minimum version to join.
 - Crest textures re-keyed from the source: the shield interior stays filled, so the D and A no longer show black counters and the speckle between the letters is gone. `design/crest-key.py` regenerates them.
+- Options tab scrolls: at the minimum window height the rows ran past the panel.
 
 ## v0.1.1-beta1 (2026-10-07)
 
