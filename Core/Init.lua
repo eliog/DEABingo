@@ -221,6 +221,50 @@ function App.playSound(kind)
   if id then pcall(PlaySound, id, "Master") end
 end
 
+------------------------------------------------------------- minimap button
+
+-- A standard LibDataBroker launcher drawn by LibDBIcon: draggable around
+-- the minimap, position kept in options.minimap, hideable from Options.
+function App.setupMinimap()
+  local ldb = LibStub and LibStub("LibDataBroker-1.1", true)
+  local icon = LibStub and LibStub("LibDBIcon-1.0", true)
+  if not ldb or not icon then return end
+  local o = App.store.db.options
+  if type(o.minimap) ~= "table" then o.minimap = { hide = false } end
+  App.launcher = ldb:NewDataObject("DEABingo", {
+    type = "launcher",
+    icon = "Interface\\AddOns\\" .. ADDON .. "\\Media\\icon.tga",
+    iconCoords = { 0.04, 0.96, 0.04, 0.96 },
+    OnClick = function(_, button)
+      if button == "RightButton" then
+        if ns.Window then ns.Window.show("options") end
+      else
+        if ns.Window then ns.Window.toggle() end
+      end
+    end,
+    OnTooltipShow = function(tt)
+      tt:AddLine("DEA Bingo")
+      local v = App.currentView()
+      if v then
+        tt:AddLine(Logic.escape(v.title), 0.91, 0.87, 0.78)
+        local line = ("%d/24 called"):format(v.callCount)
+        if v.board then line = line .. (v.hasBingo and ", BINGO" or (", %d away"):format(v.away)) end
+        tt:AddLine(line, 0.64, 0.58, 0.67)
+      else
+        tt:AddLine("No game right now", 0.64, 0.58, 0.67)
+      end
+      tt:AddLine("Click to open. Right-click for options.", 0.48, 0.42, 0.53)
+    end,
+  })
+  icon:Register("DEABingo", App.launcher, o.minimap)
+  App.minimapIcon = icon
+end
+
+function App.applyMinimapOption()
+  if not App.minimapIcon then return end
+  if App.store.db.options.minimap.hide then App.minimapIcon:Hide("DEABingo") else App.minimapIcon:Show("DEABingo") end
+end
+
 -------------------------------------------------------------------- toasts
 
 -- Toasts never interrupt a pull: in combat they wait for PLAYER_REGEN_ENABLED.
@@ -331,6 +375,7 @@ function App.setup()
     ns.Chip.init(App.chipUi)
     ns.Chip.applyOptions(App.store.db.options)
     if ns.Toast then ns.Toast.init() end
+    App.setupMinimap()
     App.uiRefresh()
   end
   return true
@@ -469,8 +514,17 @@ App.ui = {
     end
     return nil
   end,
-  option = function(key) return App.store.db.options[key] end,
+  option = function(key)
+    if key == "minimapHidden" then return App.store.db.options.minimap and App.store.db.options.minimap.hide == true end
+    return App.store.db.options[key]
+  end,
   setOption = function(key, value)
+    if key == "minimapHidden" then
+      App.store.db.options.minimap = App.store.db.options.minimap or {}
+      App.store.db.options.minimap.hide = value == true
+      App.applyMinimapOption()
+      return
+    end
     App.store.db.options[key] = value
     if key == "theme" then ns.Theme.apply(value) end
     if ns.Chip then ns.Chip.applyOptions(App.store.db.options) end

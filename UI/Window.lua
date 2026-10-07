@@ -604,6 +604,7 @@ local OPTIONS = {
   { key = "sounds", label = "Sounds", kind = "bool", default = true, hint = "A soft tick on a call, a chime for your bingo." },
   { key = "quietInCombat", label = "Quiet in combat", kind = "bool", default = true, hint = "No sounds while you are fighting. Calls still show on the chip." },
   { key = "chipHidden", label = "Hide the chip", kind = "bool", default = false, invert = true, hint = "The one-line board at the top of the screen while a game is open." },
+  { key = "minimapHidden", label = "Hide the minimap button", kind = "bool", default = false, hint = "Click it to open the board, right-click for options. Drag it around the minimap." },
   { key = "chipLocked", label = "Lock the chip", kind = "bool", default = false, hint = "Stops the chip from being dragged." },
 }
 
