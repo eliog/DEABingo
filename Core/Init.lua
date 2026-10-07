@@ -258,6 +258,78 @@ function App.setupMinimap()
   })
   icon:Register("DEABingo", App.launcher, o.minimap)
   App.minimapIcon = icon
+  App.setupBadge()
+end
+
+-- A badge on the minimap button: fel and pulsing when a game is open that
+-- you have not joined, gold with a count when calls happened while the
+-- window was closed. Opening the window clears it.
+App.attention = { newGame = false, unseenCalls = 0 }
+
+function App.setupBadge()
+  local icon = App.minimapIcon
+  if not icon or not icon.GetMinimapButton then return end
+  local button = icon:GetMinimapButton("DEABingo")
+  if not button or button.deaBadge then return end
+  local W, Theme = ns.W, ns.Theme
+  local badge = CreateFrame("Frame", nil, button)
+  badge:SetSize(16, 16)
+  badge:SetPoint("TOPRIGHT", button, "TOPRIGHT", 2, 2)
+  badge:SetFrameLevel((button:GetFrameLevel() or 0) + 2)
+  badge.dot = badge:CreateTexture(nil, "OVERLAY")
+  badge.dot:SetSize(10, 10)
+  badge.dot:SetPoint("CENTER")
+  badge.dot:SetRotation(math.rad(45))
+  Theme.register(badge.dot, "fel", "bg")
+  badge.ring = badge:CreateTexture(nil, "ARTWORK")
+  badge.ring:SetSize(14, 14)
+  badge.ring:SetPoint("CENTER")
+  badge.ring:SetRotation(math.rad(45))
+  badge.ring:SetColorTexture(0.08, 0.06, 0.1, 1)
+  badge.count = badge:CreateFontString(nil, "OVERLAY")
+  badge.count:SetFontObject(W.fonts().eyebrow)
+  badge.count:SetPoint("CENTER", 0, 0)
+  Theme.register(badge.count, "felInk", "text")
+  badge.pulse = 0
+  badge:SetScript("OnUpdate", function(self, elapsed)
+    if not self.pulsing then return end
+    self.pulse = (self.pulse + elapsed * 2) % (2 * math.pi)
+    local a = 0.65 + 0.35 * math.sin(self.pulse)
+    self.dot:SetAlpha(a)
+  end)
+  badge:Hide()
+  button.deaBadge = badge
+  App.badge = badge
+end
+
+function App.updateBadge()
+  local b = App.badge
+  if not b then return end
+  local a = App.attention
+  if a.unseenCalls > 0 then
+    b:Show()
+    b.pulsing = false
+    b.dot:SetAlpha(1)
+    ns.Theme.set(b.dot, "gold")
+    b.dot:SetSize(16, 16)
+    b.count:SetText(a.unseenCalls > 9 and "9+" or tostring(a.unseenCalls))
+    b.count:Show()
+  elseif a.newGame then
+    b:Show()
+    b.pulsing = true
+    ns.Theme.set(b.dot, "fel")
+    b.dot:SetSize(10, 10)
+    b.count:Hide()
+  else
+    b:Hide()
+    b.pulsing = false
+  end
+end
+
+function App.clearAttention()
+  App.attention.newGame = false
+  App.attention.unseenCalls = 0
+  App.updateBadge()
 end
 
 function App.applyMinimapOption()
@@ -300,6 +372,10 @@ function App.announceGame(info)
     ttl = 60,
     action = { label = "Join", fn = function() App.ui.join(info.gid) end },
   })
+  if not (ns.Window and ns.Window.isShown()) then
+    App.attention.newGame = true
+    App.updateBadge()
+  end
 end
 
 -- Game events from the host or the mirror.
@@ -310,6 +386,10 @@ function App.onGameEvent(kind, info)
   local me = App.me()
   if kind == "call" then
     if ns.Chip then ns.Chip.flash() end
+    if not (ns.Window and ns.Window.isShown()) then
+      App.attention.unseenCalls = App.attention.unseenCalls + 1
+      App.updateBadge()
+    end
     local mine, others = false, {}
     for _, name in ipairs(info.winners or {}) do
       if name == me then mine = true else others[#others + 1] = View.shortName(name) end
@@ -503,6 +583,7 @@ App.ui = {
     if host then host:close() end
   end,
   leaveToLobby = function() App.current = nil end,
+  onShown = function() App.clearAttention() end,
   savePosition = function(pos) App.store.db.options.window = pos end,
   position = function() return App.store.db.options.window end,
   defaultAudience = function() return App.inGuild() and "G" or "R" end,

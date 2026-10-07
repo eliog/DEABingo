@@ -739,7 +739,7 @@ function Window.init(callbacks)
   sh:Hide()
   win.sheetFrame = sh
 
-  win:SetScript("OnShow", function() Window.refresh() end)
+  win:SetScript("OnShow", function() Window.refresh(); if app.onShown then app.onShown() end end)
   win:SetScript("OnHide", function() sh:Hide() end)
   win:Hide()
   return win
