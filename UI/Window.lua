@@ -232,10 +232,10 @@ local function buildGame(f)
   g.standings.list = scrollList(g.standings, 22, function(parent)
     local row = CreateFrame("Button", nil, parent)
     row.rank = W.text(row, W.fonts().bodyBold, "gold", "RIGHT"); row.rank:SetPoint("LEFT", 0, 0); row.rank:SetWidth(18)
-    row.name = W.text(row, W.fonts().body, "ink"); row.name:SetPoint("LEFT", 24, 0); row.name:SetPoint("RIGHT", -120, 0)
+    row.name = W.text(row, W.fonts().body, "ink"); row.name:SetPoint("LEFT", 24, 0); row.name:SetPoint("RIGHT", -162, 0)   -- clear of the CALLER flag
     row.meter = W.meter(row); row.meter:SetPoint("RIGHT", -56, 0)
     row.time = W.text(row, W.fonts().small, "fel", "RIGHT"); row.time:SetPoint("RIGHT", -2, 0); row.time:SetWidth(50)
-    row.flag = W.text(row, W.fonts().eyebrow, "inkFaint"); row.flag:SetPoint("RIGHT", row.meter, "LEFT", -6, 0)
+    row.flag = W.text(row, W.fonts().eyebrow, "inkFaint", "RIGHT"); row.flag:SetPoint("RIGHT", row.meter, "LEFT", -6, 0); row.flag:SetWidth(50)
     row:RegisterForClicks("RightButtonUp")
     row:SetScript("OnClick", function(self)
       local v = win.currentView
@@ -691,6 +691,7 @@ local OPTIONS = {
   { key = "chipHidden", label = "Hide the chip", kind = "bool", default = false, invert = true, hint = "The one-line board at the top of the screen while a game is open." },
   { key = "minimapHidden", label = "Hide the minimap button", kind = "bool", default = false, hint = "Click it to open the board, right-click for options. Drag it around the minimap." },
   { key = "chipLocked", label = "Lock the chip", kind = "bool", default = false, hint = "Stops the chip from being dragged." },
+  { key = "reducedMotion", label = "Reduce motion", kind = "bool", default = false, hint = "No chip flash or badge pulse; toasts still appear." },
   { key = "clearHistory", label = "Clear history", kind = "action", button = "Clear",
     hint = "Forgets every finished game kept on this character. Item sets stay.",
     confirm = { "CLEAR HISTORY", "Every finished game kept on this character is forgotten. Live games and your saved squares are not touched.", "Clear it" } },

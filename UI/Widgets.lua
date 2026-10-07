@@ -115,6 +115,9 @@ function W.rect(parent, role, layer, alpha)
   return t
 end
 
+-- Every hairline, so a UI-scale change can re-thickness them.
+local hairlines = setmetatable({}, { __mode = "k" })   -- texture -> { horizontal, thickness }
+
 -- Four hairlines around a frame. Returns a table so a state change can
 -- recolour them with W.borderRole.
 function W.border(frame, role, thickness)
@@ -123,16 +126,27 @@ function W.border(frame, role, thickness)
   for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
     local t = frame:CreateTexture(nil, "BORDER")
     Theme.register(t, role, "bg")
-    if side == "TOP" or side == "BOTTOM" then
+    local horizontal = side == "TOP" or side == "BOTTOM"
+    if horizontal then
       t:SetPoint(side .. "LEFT"); t:SetPoint(side .. "RIGHT"); t:SetHeight(px)
     else
       t:SetPoint("TOP" .. side); t:SetPoint("BOTTOM" .. side); t:SetWidth(px)
     end
-    t:SetSnapToPixelGrid(true)
-    t:SetTexelSnappingBias(1)
+    -- the size is already an exact physical pixel; stop the client re-snapping it
+    t:SetSnapToPixelGrid(false)
+    t:SetTexelSnappingBias(0)
+    hairlines[t] = { horizontal = horizontal, thickness = thickness or 1 }
     b[#b + 1] = t
   end
   return b
+end
+
+-- After a UI-scale or resolution change: recompute the pixel and re-thickness.
+function W.rescale()
+  W.updatePixel()
+  for t, info in pairs(hairlines) do
+    if info.horizontal then t:SetHeight(W.px(info.thickness)) else t:SetWidth(W.px(info.thickness)) end
+  end
 end
 
 function W.borderRole(border, role)

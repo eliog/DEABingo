@@ -69,13 +69,14 @@ function Chip.init(callbacks)
 end
 
 function Chip.flash()
-  if chip then chip.flashAlpha = 1 end
+  if chip and not chip.reducedMotion then chip.flashAlpha = 1 end
 end
 
 function Chip.applyOptions(o)
   if not chip then return end
   chip.locked = o.chipLocked == true
   chip.hidden = o.chipHidden == true
+  chip.reducedMotion = o.reducedMotion == true
   -- redraw from the last state so un-hiding brings it straight back
   Chip.update(chip.lastView)
 end

@@ -304,6 +304,7 @@ function App.setupBadge()
   badge.pulse = 0
   badge:SetScript("OnUpdate", function(self, elapsed)
     if not self.pulsing then return end
+    if App.store.db.options.reducedMotion then self.dot:SetAlpha(1); return end
     self.pulse = (self.pulse + elapsed * 2) % (2 * math.pi)
     local a = 0.65 + 0.35 * math.sin(self.pulse)
     self.dot:SetAlpha(a)
@@ -398,7 +399,17 @@ end
 
 -- Game events from the host or the mirror.
 function App.onGameEvent(kind, info)
-  if kind == "close" then App.archive(info.gid); App.uiRefresh(); return end
+  if kind == "close" then
+    App.archive(info.gid)
+    -- a closed hosted game lives on in History; the host record can go
+    if App.hosts[info.gid] then
+      App.net:detachHost(info.gid)
+      App.hosts[info.gid] = nil
+      App.store:forgetHosted(info.gid)
+    end
+    App.uiRefresh()
+    return
+  end
   if kind == "newGame" then App.announceGame(info); return end
   if kind == "promote" then App.promote(info.gid); return end
   if kind == "callLost" then
@@ -427,8 +438,6 @@ function App.onGameEvent(kind, info)
     end
   elseif kind == "undo" then
     App.playSound("undo")
-  elseif kind == "close" then
-    App.archive(info.gid)
   end
 end
 
@@ -1030,7 +1039,7 @@ end
 -------------------------------------------------------------------- events
 
 local frame = CreateFrame("Frame")
-for _, ev in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "GUILD_ROSTER_UPDATE", "CHAT_MSG_ADDON", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED" }) do
+for _, ev in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "GUILD_ROSTER_UPDATE", "CHAT_MSG_ADDON", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED" }) do
   Compat.RegisterEvent(frame, ev)
 end
 frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
@@ -1065,7 +1074,11 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
     App.refreshGuild()
     App.refreshGroup()
   elseif event == "PLAYER_ENTERING_WORLD" then
+    if not App.ready then App.setup() end   -- a login where the name was not readable yet
     App.helloSoon()
+  elseif event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
+    if ns.W then ns.W.rescale() end
+    App.uiRefresh()
   elseif event == "GROUP_ROSTER_UPDATE" then
     App.refreshGroup()
     App.helloSoon()

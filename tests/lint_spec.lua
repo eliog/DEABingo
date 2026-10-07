@@ -101,3 +101,9 @@ describe("pins", function()
     end
   end)
 end)
+
+describe("pixel snapping", function()
+  it("does not ask the client to re-snap hairlines that are already pixel-sized", function()
+    assert.is_nil(read("UI/Widgets.lua"):find("SetSnapToPixelGrid(true)", 1, true))
+  end)
+end)

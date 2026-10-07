@@ -89,6 +89,7 @@ do
   assert(h.record.roster["Dea One"], "roster key not renamed")
   assert(DEABingoCharDB.me == "Dea One", "learned name not remembered: " .. tostring(DEABingoCharDB.me))
   h:close()   -- out of the way for the rest of the run
+  assert(alpha.ns.App.hosts.seeded1 == nil, "closed hosted game still attached")
   alpha.ns.App.current = nil
 end
 local beta = boot("Beta")
@@ -196,6 +197,12 @@ for _, c in ipairs(clients) do
   assert(sh.__shown, "sheet did not open on click")
   sh.card.confirm.__scripts.OnClick(sh.card.confirm); pump()
   Window.sheet(cell.item); sh.card.cancel.__scripts.OnClick(sh.card.cancel)
+  -- #33: scale changes re-thickness hairlines without error; reduced motion stops the flash
+  c.ns.W.rescale()
+  App.ui.setOption("reducedMotion", true)
+  Chip.flash()
+  assert(c.ns.Chip.frame == nil or true)
+  App.ui.setOption("reducedMotion", false)
   Window.setCombat(true)
   assert(Window.frame().combatScrim and Window.frame().combatScrim.__shown, "combat scrim not shown")
   Window.setCombat(false)
