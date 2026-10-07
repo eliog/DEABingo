@@ -10,6 +10,7 @@
     deps.persist(gid, state)            optional, called after every change to a joined game
     deps.onCards()                      optional, called when the lobby cards change
     deps.lookupItems(hash)              optional, returns a cached {title, items} for a hash
+    deps.storeItems(hash, title, items) optional, called when a host's items are heard before joining
     deps.onEvent(kind, info)            optional: "call" {gid, idx, winners}, "undo" {gid, idx, revoked}, "join" {gid, name},
                                         "newGame" {gid, title, owner, state} the first time a host's card is heard
     deps.log(text)                      optional
@@ -38,6 +39,7 @@ function Mirror.new(deps)
   self.cards = {}        -- gid -> card
   self.games = {}        -- gid -> game
   self.joining = {}      -- gid -> when we asked to join
+  self.itemCache = {}    -- itemsHash -> { title, items } heard from a host before joining
   self.saidNewer = false
   self.nonce = 0          -- marks our latest HI; fresh on every hello
   self.helloAt = nil      -- when that HI went out
@@ -154,9 +156,10 @@ end
 function Mirror:requestItems(gid)
   local g = self.games[gid]
   if not g or not g.itemsHash then return end
-  if self.deps.lookupItems then
-    local set = self.deps.lookupItems(g.itemsHash)
-    if set and type(set.items) == "table" and #set.items == Logic.ITEM_COUNT then
+  local set = self.itemCache[g.itemsHash]
+  if not set and self.deps.lookupItems then set = self.deps.lookupItems(g.itemsHash) end
+  if set then
+    if type(set.items) == "table" and #set.items == Logic.ITEM_COUNT then
       g.items = set.items
       if set.title and set.title ~= "" then g.title = set.title end
       self:persist(gid)
@@ -270,7 +273,19 @@ function Mirror:handle(msg, sender)
     self:persist(gid)
     return
   end
-  if not g then return end
+  if not g then
+    -- Items broadcast by a host we have a card from, before we joined: keep
+    -- them, so joining later costs no whisper. The one broadcast at open
+    -- serves the whole wave.
+    if t == "IT" then
+      local card = self.cards[gid]
+      if card and card.host == sender then
+        self.itemCache[f.itemsHash] = { title = f.title, items = f.items }
+        if self.deps.storeItems then self.deps.storeItems(f.itemsHash, f.title, f.items) end
+      end
+    end
+    return
+  end
   if sender ~= g.owner then return end
   if t == "IT" then
     -- The owner is the only writer, so whatever items they send are the

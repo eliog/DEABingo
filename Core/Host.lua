@@ -204,7 +204,12 @@ function Host:addPlayer(name, silent)
   local r = self.record
   local entry = r.roster[name]
   if entry then return entry, false end
-  if name ~= r.owner and not r.frozen then r.frozen = true end
+  if name ~= r.owner and not r.frozen then
+    r.frozen = true
+    -- The items are final now: one more broadcast for anyone who missed the
+    -- one at open, instead of a whisper per joiner.
+    self:emit("IT", { itemsHash = r.itemsHash, title = r.title, items = r.items })
+  end
   local taken = {}
   for _, e in pairs(r.roster) do taken[#taken + 1] = e.board end
   entry = { board = Logic.dealUniqueBoard(self.deps.rng, taken), canCall = false, bingoAt = nil, joinedAt = self.deps.now() }

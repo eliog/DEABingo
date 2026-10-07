@@ -375,6 +375,34 @@ describe("items", function()
   end)
 end)
 
+describe("item broadcast", function()
+  it("lets a join wave use the broadcast items without a single whisper", function()
+    local hub, host, _, names = guildNight(6)
+    joinAll(hub, host, names)
+    for i = 2, 6 do
+      local c = hub.clients[names[i]]
+      assert.are.same(host.record.items, c.mirror.games[host.record.gid].items, names[i])
+      for _, m in ipairs(c.sent) do
+        assert.is_nil(m.payload:find("\31IQ\31", 1, true), names[i] .. " asked for items")
+      end
+    end
+    -- the host whispered no IT either: one broadcast served everyone
+    local whisperedIT = 0
+    for _, m in ipairs(hub.clients[names[1]].sent) do
+      if m.channel == "WHISPER" and m.payload:find("\31IT\31", 1, true) then whisperedIT = whisperedIT + 1 end
+    end
+    assert.are.equal(0, whisperedIT)
+  end)
+
+  it("still serves items by whisper to someone who never heard the broadcast", function()
+    local hub, host = guildNight(2)
+    local late = hub:addClient("Late-Pagle", { guild = "DEA", group = "raid1" })
+    late.mirror:hello(); hub:flush()
+    late.mirror:join(host.record.gid); hub:flush(); hub:advance(Host.SYNC_DELAY + 1)
+    assert.are.same(host.record.items, late.mirror.games[host.record.gid].items)
+  end)
+end)
+
 describe("ownership", function()
   it("ignores a higher generation from anyone the owner did not hand the game to", function()
     local hub, host, _, names = guildNight(3)

@@ -438,6 +438,7 @@ function App.setup()
     persist = function(gid, g) App.store:saveJoined(gid, g); App.uiRefresh() end,
     onCards = function() App.uiRefresh() end,
     lookupItems = function(hash) local set = App.store.db.itemSets[hash]; if type(set) == "table" then return set end end,
+    storeItems = function(hash, title, items) App.store:saveItemSet(hash, title, items) end,
     onEvent = function(kind, info) App.onGameEvent(kind, info) end,
   })
   App.net.mirror = App.mirror
