@@ -335,11 +335,18 @@ local function buildSetup(f)
   end
 
   function s:Refresh()
+    local inGuild = not app.inGuild or app.inGuild()
+    if not inGuild and self.audience == "G" then self.audience = "R" end
+    self.guildBtn:SetEnabledState(inGuild)
     Theme.set(self.guildBtn.face, self.audience == "G" and "felWash" or "raised")
     W.borderRole(self.guildBtn.border, self.audience == "G" and "fel" or "lineStrong")
     Theme.set(self.raidBtn.face, self.audience == "R" and "felWash" or "raised")
     W.borderRole(self.raidBtn.border, self.audience == "R" and "fel" or "lineStrong")
-    self.audienceHint:SetText(self.audience == "G" and "Guild members anywhere, no strangers." or "Anyone grouped with you, pugs included.")
+    if not inGuild then
+      self.audienceHint:SetText("You are not in a guild, so the game is for your group.")
+    else
+      self.audienceHint:SetText(self.audience == "G" and "Guild members anywhere, no strangers." or "Anyone grouped with you, pugs included.")
+    end
     -- start-from buttons: presets and saved sets
     local sources = app.itemSets()
     for _, b in ipairs(self.fromButtons) do b:Hide() end

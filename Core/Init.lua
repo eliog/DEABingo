@@ -363,6 +363,7 @@ App.ui = {
   savePosition = function(pos) App.store.db.options.window = pos end,
   position = function() return App.store.db.options.window end,
   defaultAudience = function() return App.inGuild() and "G" or "R" end,
+  inGuild = App.inGuild,
   itemSets = function()
     local out = {}
     for _, p in ipairs(ns.PRESETS) do out[#out + 1] = { name = p.name, items = p.items } end
