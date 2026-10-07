@@ -207,7 +207,7 @@ end
 
 function App.hostDeps()
   return {
-    now = GetServerTime, me = App.me(), log = debug_,
+    now = GetServerTime, me = App.me(), log = debug_, addonVersion = Compat.GetAddOnVersion(ADDON),
     rng = { int = function(_, n) return math.random(0, n - 1) end },
     send = function(p, c, t) return App.net:send(p, c, t) end,
     persist = function(record) App.store:saveHosted(record); App.uiRefresh() end,
@@ -412,6 +412,12 @@ function App.onGameEvent(kind, info)
   end
   if kind == "newGame" then App.announceGame(info); return end
   if kind == "promote" then App.promote(info.gid); return end
+  if kind == "newerAddon" then
+    local mine = Compat.GetAddOnVersion(ADDON)
+    print_(("%s is available (you have %s). Update from CurseForge or github.com/eliog/DEABingo/releases."):format(info.version, mine))
+    App.toast({ text = "DEA Bingo " .. info.version .. " is available", sub = "You have " .. mine .. ". Update from CurseForge or GitHub.", accent = "gold", ttl = 30 })
+    return
+  end
   if kind == "callLost" then
     if info.gid == App.current then
       App.toast({ text = "The host did not answer", sub = "Your call was not recorded. Try again when they are back.", accent = "gold", ttl = 10 })
@@ -461,7 +467,7 @@ function App.setup()
     learnMe = App.learnMe,
   })
   App.mirror = Mirror.new({
-    now = GetServerTime, me = me, log = debug_,
+    now = GetServerTime, me = me, log = debug_, addonVersion = Compat.GetAddOnVersion(ADDON),
     send = function(p, c, t) return App.net:send(p, c, t) end,
     channels = function() return App.net:channels() end,
     persist = function(gid, g) App.store:saveJoined(gid, g); App.uiRefresh() end,
@@ -701,7 +707,13 @@ App.ui = {
     return n
   end,
   action = function(key)
-    if key == "clearHistory" then
+    if key == "requireVersion" then
+      local host = currentGame()
+      if not host then print_("only while hosting a game"); return end
+      local on = host.record.minAddon ~= nil and host.record.minAddon ~= ""
+      host:setMinAddon(on and "" or Compat.GetAddOnVersion(ADDON))
+      print_(on and "any version may join this game" or ("joining this game now needs DEA Bingo " .. Compat.GetAddOnVersion(ADDON)))
+    elseif key == "clearHistory" then
       App.store.db.history = {}
       print_("history cleared")
     end

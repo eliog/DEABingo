@@ -82,6 +82,7 @@ local checks = {
   owner = Codec.isName, audience = K.enum({ "G", "R" }).check,
   createdAt = K.int(0, Codec.TIME_MAX).check, lastActivity = K.int(0, Codec.TIME_MAX).check,
   closedAt = K.optint(0, Codec.TIME_MAX).check, itemsHash = K.hash().check,
+  minAddon = function(v) return v == nil or (type(v) == "string" and #v <= 24) end,
 }
 function Store.isRecord(r)
   if type(r) ~= "table" then return false end

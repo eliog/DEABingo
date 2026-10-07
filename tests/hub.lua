@@ -41,6 +41,7 @@ function Hub:addClient(name, opts)
   }
   local deps = {
     transport = transport,
+    addonVersion = opts.version or "v0.1.1",
     now = function() return hub.time end,
     me = opts.thinksItIs or name,     -- what the client believes; the hub always stamps `name`
     learnMe = function(real)
@@ -66,14 +67,14 @@ function Hub:addClient(name, opts)
   }
   client.net = Net.new(deps)
   client.mirror = Mirror.new({
-    now = deps.now, me = deps.me, log = deps.log,
+    now = deps.now, me = deps.me, log = deps.log, addonVersion = deps.addonVersion,
     send = function(p, c, t) return client.net:send(p, c, t) end,
     channels = function() return client.net:channels() end,
     persist = function(gid, g) client.joined = client.joined or {}; client.joined[gid] = g end,
   })
   client.net.mirror = client.mirror
   client.hostDeps = {
-    now = deps.now, rng = hub.rng, me = name, log = deps.log,
+    now = deps.now, rng = hub.rng, me = name, log = deps.log, addonVersion = deps.addonVersion,
     send = function(p, c, t) return client.net:send(p, c, t) end,
     persist = function(record) client.persisted = record end,
     isMember = deps.isMember,

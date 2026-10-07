@@ -72,8 +72,12 @@ end
 
 function Mirror:emit(msgType, gid, fields, channel, target)
   local payload, err = Codec.encode(msgType, gid, fields)
-  assert(payload, err)
+  if not payload then
+    self:log(("could not send %s: %s"):format(msgType, tostring(err)))
+    return false
+  end
   self.deps.send(payload, channel, target)
+  return true
 end
 
 --------------------------------------------------------------------- lobby
@@ -83,7 +87,7 @@ function Mirror:hello()
   self.nonce = freshNonce()
   self.helloAt = self.deps.now()
   for _, channel in ipairs(self.deps.channels()) do
-    self:emit("HI", Mirror.HELLO_GID, { ver = Codec.PROTOCOL, nonce = self.nonce }, channel)
+    self:emit("HI", Mirror.HELLO_GID, { ver = Codec.PROTOCOL, nonce = self.nonce, addon = self.deps.addonVersion or "" }, channel)
   end
 end
 
@@ -111,6 +115,13 @@ function Mirror:join(gid)
   local card = self.cards[gid]
   if not card then return nil, "no such game" end
   if card.state ~= "open" then return nil, "that game is closed" end
+  -- The host may require a minimum addon version; dev builds are not held to it.
+  if card.minAddon and card.minAddon ~= "" then
+    local cmp = Logic.compareVersions(self.deps.addonVersion, card.minAddon)
+    if cmp ~= nil and cmp < 0 then
+      return nil, ("This game needs DEA Bingo %s or newer; you have %s. Update to join."):format(card.minAddon, tostring(self.deps.addonVersion))
+    end
+  end
   self.joining[gid] = self.deps.now()
   self:emit("JN", gid, { ver = Codec.PROTOCOL }, "WHISPER", card.host)
   return true
@@ -427,6 +438,16 @@ function Mirror:onCard(gid, f, sender)
   if self.deps.onCards then self.deps.onCards() end
   if isNew and self.deps.onEvent then
     self.deps.onEvent("newGame", { gid = gid, title = f.title, owner = sender, state = f.state })
+  end
+end
+
+-- Another client runs a newer release than ours: say so once per session.
+function Mirror:noteAddonVersion(theirs)
+  if not theirs or theirs == "" or self.saidNewerAddon then return end
+  local cmp = Logic.compareVersions(self.deps.addonVersion, theirs)
+  if cmp ~= nil and cmp < 0 then
+    self.saidNewerAddon = theirs
+    if self.deps.onEvent then self.deps.onEvent("newerAddon", { version = theirs }) end
   end
 end
 

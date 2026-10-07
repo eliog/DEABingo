@@ -184,6 +184,7 @@ function Net:dispatch(payload, channel, sender)
   end
   if not actionable(self, msg) then return end
   if not self:allow(sender, msg.gid) then self.stats.dropped = self.stats.dropped + 1; return end
+  if (msg.type == "HI" or msg.type == "GA") and self.mirror then self.mirror:noteAddonVersion(msg.f.addon) end
 
   if msg.type == "HI" then
     for _, host in pairs(self.hosts) do host:handle(msg, sender) end

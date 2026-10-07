@@ -22,7 +22,7 @@ local Logic = ns.Logic or require("Core.Logic")
 local Codec = {}
 ns.Codec = Codec
 
-Codec.PROTOCOL = 1
+Codec.PROTOCOL = 2   -- 2: addon version on HI and GA, minimum version on GA
 Codec.FIELD = "\31"
 Codec.LIST = "\30"
 Codec.MAX_PAYLOAD = 8000    -- reassembled bytes accepted before parsing (AceComm chunks it)
@@ -70,16 +70,20 @@ function kinds.flag()
 end
 
 -- Player text: must already be clean (cleanText is a fixed point) and short.
+-- An optional field (allowEmpty) may be left out: it encodes as "".
 function kinds.text(max, allowEmpty)
   return {
-    enc = function(v) return v end,
+    enc = function(v) return v or "" end,
     dec = function(s)
       if s == "" then if allowEmpty then return "" end return nil end
       if Logic.cleanText(s) ~= s then return nil end
       if Logic.utf8len(s) > max then return nil end
       return s
     end,
-    check = function(v) return type(v) == "string" and (allowEmpty or v ~= "") and Logic.cleanText(v) == v and Logic.utf8len(v) <= max end,
+    check = function(v)
+      if v == nil then return allowEmpty == true end
+      return type(v) == "string" and (allowEmpty or v ~= "") and Logic.cleanText(v) == v and Logic.utf8len(v) <= max
+    end,
   }
 end
 
@@ -231,11 +235,12 @@ local NAMES = kinds.list(kinds.name(), 200)
 -- type -> ordered list of {field, kind}
 Codec.SCHEMA = {
   -- discovery
-  HI = { { "ver", kinds.int(1, 999) }, { "nonce", kinds.int(0, 2 ^ 31) } },
+  HI = { { "ver", kinds.int(1, 999) }, { "nonce", kinds.int(0, 2 ^ 31) }, { "addon", kinds.text(24, true) } },
   GA = { { "gen", kinds.int(1, 9999) }, { "seq", SEQ }, { "state", kinds.enum({ "open", "closed" }) },
          { "title", kinds.text(Logic.TITLE_MAX) }, { "owner", kinds.name() }, { "players", kinds.int(0, 999) },
          { "callMask", kinds.int(0, 2 ^ N - 1) }, { "lastActivity", TIME }, { "itemsHash", kinds.hash() },
-         { "createdAt", TIME }, { "audience", kinds.enum({ "G", "R" }) } },
+         { "createdAt", TIME }, { "audience", kinds.enum({ "G", "R" }) },
+         { "addon", kinds.text(24, true) }, { "minAddon", kinds.text(24, true) } },
   -- joining
   JN = { { "ver", kinds.int(1, 999) } },
   WE = { { "seq", SEQ }, { "board", kinds.board() }, { "canCall", kinds.flag() }, { "createdAt", TIME },

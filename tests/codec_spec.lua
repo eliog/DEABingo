@@ -10,9 +10,10 @@ local board = F.deals[1].board
 describe("codec", function()
   it("round-trips every message type", function()
     local samples = {
-      HI = { ver = 1, nonce = 4242 },
+      HI = { ver = 2, nonce = 4242, addon = "v0.1.1" },
       GA = { gen = 1, seq = 7, state = "open", title = "Tuesday MC", owner = "Thalgrim-Pagle", players = 12,
-             callMask = 2 ^ 3 + 2 ^ 20, lastActivity = 1700000000, itemsHash = "ab12cd", createdAt = 1699999000, audience = "G" },
+             callMask = 2 ^ 3 + 2 ^ 20, lastActivity = 1700000000, itemsHash = "ab12cd", createdAt = 1699999000, audience = "G",
+             addon = "v0.1.1", minAddon = "" },
       JN = { ver = 1 },
       WE = { seq = 3, board = board, canCall = false, createdAt = 1699999000, bingoAt = nil, itemsHash = "ab12cd", gen = 1 },
       JD = { seq = 4, name = "Dorn-Pagle", board = board, canCall = true, bingoAt = 1700000001 },
@@ -42,6 +43,13 @@ describe("codec", function()
       assert.are.equal("abc12-x", msg.gid)
       assert.are.same(fields, msg.f, msgType)
     end
+  end)
+
+  it("lets an optional text field be left out and reads it back empty", function()
+    local wire = Codec.encode("HI", "0", { ver = 2, nonce = 1 })
+    assert.is_truthy(wire)
+    assert.are.equal("", Codec.decode(wire).f.addon)
+    assert.is_nil(Codec.encode("TI", "g", { seq = 1 }))   -- a required text field cannot be left out
   end)
 
   it("keeps a full items message inside the payload cap", function()

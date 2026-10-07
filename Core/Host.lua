@@ -200,7 +200,15 @@ function Host:card()
     title = r.title, owner = r.owner, players = rosterCount(r),
     callMask = Codec.callMask(r.calls), lastActivity = r.lastActivity,
     itemsHash = r.itemsHash, createdAt = r.createdAt, audience = r.audience,
+    addon = self.deps.addonVersion or "", minAddon = r.minAddon or "",
   }
+end
+
+-- Require joiners to run at least this version ("" lifts the rule).
+function Host:setMinAddon(version)
+  self.record.minAddon = version or ""
+  self:persist()
+  if self.record.state == "open" then self:heartbeat() end
 end
 
 function Host:heartbeat(target)

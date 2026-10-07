@@ -320,6 +320,29 @@ function Logic.sameCharacter(a, b)
   return long:sub(1, #short) == short
 end
 
+-- Addon versions: "v0.1.1", "0.1.1-beta1". A development build ("dev",
+-- "@project-version@") parses to nil and is never compared.
+function Logic.parseVersion(s)
+  if type(s) ~= "string" then return nil end
+  local major, minor, patch, pre = s:match("^v?(%d+)%.(%d+)%.(%d+)%-?([%w%.]*)$")
+  if not major then return nil end
+  return { tonumber(major), tonumber(minor), tonumber(patch), pre = pre ~= "" and pre or nil }
+end
+
+-- -1, 0 or 1 like strcmp; nil when either side is not a release version.
+-- A prerelease sorts before the release it precedes (0.1.1-beta1 < 0.1.1).
+function Logic.compareVersions(a, b)
+  local va, vb = Logic.parseVersion(a), Logic.parseVersion(b)
+  if not va or not vb then return nil end
+  for i = 1, 3 do
+    if va[i] ~= vb[i] then return va[i] < vb[i] and -1 or 1 end
+  end
+  if va.pre == vb.pre then return 0 end
+  if va.pre and not vb.pre then return -1 end
+  if vb.pre and not va.pre then return 1 end
+  return va.pre < vb.pre and -1 or 1
+end
+
 -- Escape sequences (|c, |H, |T, |A, |K, |n) render in any FontString. Every
 -- untrusted string passes through here before display or chat.
 function Logic.escape(s)
