@@ -148,15 +148,23 @@ function W.button(parent, label, onClick, opts)
   b.label = W.text(b, opts.font or W.fonts().bodyBold, opts.primary and "felInk" or "ink", "CENTER")
   b.label:SetPoint("CENTER", 0, 0)
   b.label:SetText(label)
-  b:SetScript("OnEnter", function(self)
-    if self.disabled then return end
-    Theme.set(self.face, opts.primary and "fel" or "surface")
-    W.borderRole(self.border, opts.primary and "ink" or "gold")
-  end)
-  b:SetScript("OnLeave", function(self)
-    Theme.set(self.face, opts.primary and "fel" or "raised")
-    W.borderRole(self.border, opts.primary and "fel" or "lineStrong")
-  end)
+  -- Resting, hover and selected looks. Selected is the fel wash with a fel
+  -- border and survives hovering; hover only brightens the border.
+  function b:Paint(hover)
+    if self.selected then
+      Theme.set(self.face, "felWash"); W.borderRole(self.border, hover and "ink" or "fel")
+    elseif opts.primary then
+      Theme.set(self.face, "fel"); W.borderRole(self.border, hover and "ink" or "fel")
+    else
+      Theme.set(self.face, hover and "surface" or "raised"); W.borderRole(self.border, hover and "gold" or "lineStrong")
+    end
+  end
+  function b:SetSelected(on)
+    self.selected = on == true
+    self:Paint(false)
+  end
+  b:SetScript("OnEnter", function(self) if not self.disabled then self:Paint(true) end end)
+  b:SetScript("OnLeave", function(self) self:Paint(false) end)
   b:SetScript("OnClick", function(self, button) if not self.disabled and onClick then onClick(self, button) end end)
   function b:SetLabel(text) self.label:SetText(text) end
   function b:SetEnabledState(on)

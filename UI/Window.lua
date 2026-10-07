@@ -515,10 +515,8 @@ local function buildSetup(f)
     local inGuild = not app.inGuild or app.inGuild()
     if not inGuild and self.audience == "G" then self.audience = "R" end
     self.guildBtn:SetEnabledState(inGuild)
-    Theme.set(self.guildBtn.face, self.audience == "G" and "felWash" or "raised")
-    W.borderRole(self.guildBtn.border, self.audience == "G" and "fel" or "lineStrong")
-    Theme.set(self.raidBtn.face, self.audience == "R" and "felWash" or "raised")
-    W.borderRole(self.raidBtn.border, self.audience == "R" and "fel" or "lineStrong")
+    self.guildBtn:SetSelected(self.audience == "G")
+    self.raidBtn:SetSelected(self.audience == "R")
     if not inGuild then
       self.audienceHint:SetText("You are not in a guild, so the game is for your group.")
     else
@@ -643,11 +641,7 @@ local function buildOptions(f)
     for _, row in ipairs(self.rows) do
       local current = app.option(row.def.key)
       if current == nil then current = row.def.default end
-      for _, b in ipairs(row.buttons) do
-        local on = b.value == current
-        Theme.set(b.face, on and "felWash" or "raised")
-        W.borderRole(b.border, on and "fel" or "lineStrong")
-      end
+      for _, b in ipairs(row.buttons) do b:SetSelected(b.value == current) end
     end
   end
   return o
