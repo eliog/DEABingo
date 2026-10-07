@@ -583,7 +583,16 @@ local function buildSetup(f)
       elseif not Logic.validateTitle(self.title:GetText()).ok then
         footer.text:SetText("Give the game a title.")
       else
-        footer.text:SetText(self.audience == "G" and "Opens for everyone online in the guild." or "Opens for everyone in your group, guests included.")
+        if self.audience == "G" then
+          footer.text:SetText("Opens for everyone online in the guild.")
+        else
+          local strangers = app.nonGuildInGroup and app.nonGuildInGroup() or 0
+          if strangers > 0 then
+            footer.text:SetText(("Opens for everyone in your group. %d of them %s not in your guild and will see the squares."):format(strangers, strangers == 1 and "is" or "are"))
+          else
+            footer.text:SetText("Opens for everyone in your group, guests included.")
+          end
+        end
       end
     end
     return check
@@ -682,6 +691,9 @@ local OPTIONS = {
   { key = "chipHidden", label = "Hide the chip", kind = "bool", default = false, invert = true, hint = "The one-line board at the top of the screen while a game is open." },
   { key = "minimapHidden", label = "Hide the minimap button", kind = "bool", default = false, hint = "Click it to open the board, right-click for options. Drag it around the minimap." },
   { key = "chipLocked", label = "Lock the chip", kind = "bool", default = false, hint = "Stops the chip from being dragged." },
+  { key = "clearHistory", label = "Clear history", kind = "action", button = "Clear",
+    hint = "Forgets every finished game kept on this character. Item sets stay.",
+    confirm = { "CLEAR HISTORY", "Every finished game kept on this character is forgotten. Live games and your saved squares are not touched.", "Clear it" } },
 }
 
 local function buildOptions(f)
@@ -701,15 +713,24 @@ local function buildOptions(f)
     row.label = W.text(row, W.fonts().bodyBold, "ink"); row.label:SetPoint("TOPLEFT", 2, -10); row.label:SetText(def.label)
     row.hint = W.text(row, W.fonts().small, "inkFaint"); row.hint:SetPoint("BOTTOMLEFT", 2, 10); row.hint:SetPoint("RIGHT", -220, 0); row.hint:SetText(def.hint)
     row.buttons = {}
-    local choices = def.kind == "choice" and def.choices or { { true, "On" }, { false, "Off" } }
-    local x = 0
-    for j = #choices, 1, -1 do
-      local value, label = choices[j][1], choices[j][2]
-      local b = W.button(row, label, function() app.setOption(def.key, value); Window.refresh() end, { width = 86, height = 26 })
-      b:SetPoint("RIGHT", -x, 0)
-      b.value = value
-      row.buttons[#row.buttons + 1] = b
-      x = x + 92
+    if def.kind == "action" then
+      local b = W.button(row, def.button, function()
+        local run = function() app.action(def.key); Window.refresh() end
+        if def.confirm then Window.confirm(def.confirm[1], def.confirm[2], def.confirm[3], run) else run() end
+      end, { width = 110, height = 26 })
+      b:SetPoint("RIGHT", 0, 0)
+      row.action = b
+    else
+      local choices = def.kind == "choice" and def.choices or { { true, "On" }, { false, "Off" } }
+      local x = 0
+      for j = #choices, 1, -1 do
+        local value, label = choices[j][1], choices[j][2]
+        local b = W.button(row, label, function() app.setOption(def.key, value); Window.refresh() end, { width = 86, height = 26 })
+        b:SetPoint("RIGHT", -x, 0)
+        b.value = value
+        row.buttons[#row.buttons + 1] = b
+        x = x + 92
+      end
     end
     row.def = def
     o.rows[i] = row

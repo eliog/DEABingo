@@ -682,6 +682,21 @@ App.ui = {
     end
     return nil
   end,
+  -- Players in the group who are not in the guild: who else sees a Raid-mode game.
+  nonGuildInGroup = function()
+    App.refreshGroup()
+    local n = 0
+    for name in pairs(groupSet) do
+      if name ~= App.me() and not guildSet[name] then n = n + 1 end
+    end
+    return n
+  end,
+  action = function(key)
+    if key == "clearHistory" then
+      App.store.db.history = {}
+      print_("history cleared")
+    end
+  end,
   option = function(key)
     if key == "minimapHidden" then return App.store.db.options.minimap and App.store.db.options.minimap.hide == true end
     return App.store.db.options[key]

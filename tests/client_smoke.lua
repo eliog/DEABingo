@@ -242,6 +242,32 @@ for _, c in ipairs(clients) do
   Window.show("options"); Window.refresh()
   local opt = Window.frame().views.options.rows[1].buttons[1]
   opt.__scripts.OnClick(opt)
+  -- #27: clear history through its row and confirmation card
+  do
+    local before = #App.store:history()
+    App.store:addHistory({ gid = "old1", title = "Old", roster = {}, calls = {} })
+    assert(#App.store:history() == before + 1, "history entry not added")
+    local clearRow
+    for _, row in ipairs(Window.frame().views.options.rows) do if row.def.key == "clearHistory" then clearRow = row end end
+    assert(clearRow and clearRow.action, "clear history row missing")
+    clearRow.action.__scripts.OnClick(clearRow.action)
+    local cf = Window.frame().confirmFrame
+    assert(cf.__shown, "clear history did not ask first")
+    cf.card.confirm.__scripts.OnClick(cf.card.confirm)
+    assert(#App.store:history() == 0, "history not cleared")
+  end
+  -- #27: the preflight line counts group members outside the guild
+  do
+    local realRoster = _G.GetGuildRosterInfo
+    _G.GetGuildRosterInfo = function(i) return ({ "Dea One" })[i] end   -- only Dea One is in the guild now
+    _G.GetNumGuildMembers = function() return 1 end
+    c.ns.App.refreshGuild()
+    local n = App.ui.nonGuildInGroup()
+    _G.GetGuildRosterInfo = realRoster
+    _G.GetNumGuildMembers = function() return 2 end
+    c.ns.App.refreshGuild()
+    if c.name == "Dea One" then assert(n == 1, "expected one stranger in the group, got " .. n) end
+  end
   local parsed = Window.parseList("1. Alpha\n2) Beta\n- Gamma\n\nalpha\n• Delta")
   assert(#parsed == 4 and parsed[1] == "Alpha" and parsed[4] == "Delta", "paste parser")
   Window.show("setup"); Window.refresh()
