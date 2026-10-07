@@ -71,6 +71,7 @@ function stub.install()
   _G.GetPhysicalScreenSize = function() return 1920, 1080 end
   _G.GetLocale = function() return "enUS" end
   _G.IsControlKeyDown = function() return false end
+  _G.GetCursorPosition = function() return 500, 500 end
   _G.tinsert = table.insert
   _G.date = _G.date or function() return "Tuesday" end
 end

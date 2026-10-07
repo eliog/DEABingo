@@ -689,19 +689,30 @@ function Window.init(callbacks)
   win.grip:SetScript("OnEnter", function(self) for _, t in ipairs(self.lines) do Theme.set(t, "gold") end end)
   win.grip:SetScript("OnLeave", function(self) for _, t in ipairs(self.lines) do Theme.set(t, "inkFaint") end end)
   W.tooltip(win.grip, function() return { "Drag to resize" } end)
-  -- Sizing from a centre-anchored frame grows it in every direction at
-  -- once, so the corner leaps away. Pin the top-left where it is first.
-  win.grip:SetScript("OnMouseDown", function()
+  -- Manual sizing: the grip tracks the cursor itself, so the window grows
+  -- only right and down from its pinned top-left, whatever it was anchored
+  -- to and whatever the UI scale.
+  local MIN_W, MIN_H = 700, 470
+  win.grip:SetScript("OnMouseDown", function(self)
     local left, top = win:GetLeft(), win:GetTop()
     if left and top then
-      local scale = win:GetEffectiveScale() / UIParent:GetEffectiveScale()
       win:ClearAllPoints()
-      win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left * scale, top * scale)
+      win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
     end
-    win:StartSizing("BOTTOMRIGHT")
+    local cx, cy = GetCursorPosition()
+    local scale = win:GetEffectiveScale()
+    self.sizing = { cx = cx / scale, cy = cy / scale, w = win:GetWidth(), h = win:GetHeight() }
+    self:SetScript("OnUpdate", function(grip)
+      local s = grip.sizing
+      if not s then return end
+      local x, y = GetCursorPosition()
+      x, y = x / scale, y / scale
+      win:SetSize(math.max(MIN_W, s.w + (x - s.cx)), math.max(MIN_H, s.h - (y - s.cy)))
+    end)
   end)
-  win.grip:SetScript("OnMouseUp", function()
-    win:StopMovingOrSizing()
+  win.grip:SetScript("OnMouseUp", function(self)
+    self.sizing = nil
+    self:SetScript("OnUpdate", nil)
     local point, _, relPoint, x, y = win:GetPoint(1)
     app.savePosition({ point = point, relPoint = relPoint, x = x, y = y, w = win:GetWidth(), h = win:GetHeight() })
   end)
