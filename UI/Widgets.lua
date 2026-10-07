@@ -74,6 +74,19 @@ function W.fonts()
   }
 end
 
+--------------------------------------------------------------------- crest
+
+local MEDIA_ROOT = "Interface\\AddOns\\" .. ADDON .. "\\Media\\"
+
+-- The guild crest, keyed to transparency, at the sharpest size for the box.
+function W.crest(parent, size, layer)
+  local t = parent:CreateTexture(nil, layer or "ARTWORK")
+  local file = size > 128 and "logo.tga" or (size > 64 and "logo128.tga" or "icon.tga")
+  t:SetTexture(MEDIA_ROOT .. file)
+  t:SetSize(size, size)
+  return t
+end
+
 -------------------------------------------------------------- primitives
 
 function W.rect(parent, role, layer, alpha)

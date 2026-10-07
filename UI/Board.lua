@@ -115,8 +115,9 @@ local function newCell(board, position)
   return c
 end
 
--- Our own stone: a chamfered octagon suggested by a diamond behind a square,
--- an ember in the middle. Never traced from Blizzard art.
+-- The free centre: the guild crest. The one square everyone starts with
+-- carries the guild's mark, with the gold dashed bar so it never reads as
+-- a called square.
 local function newCentre(board)
   local c = CreateFrame("Frame", nil, board.frame)
   c.face = W.rect(c, "sunk"); c.face:SetAllPoints()
@@ -125,36 +126,12 @@ local function newCentre(board)
   Theme.register(c.dash, "gold", "bg", 0.6)
   c.dash:SetPoint("TOPLEFT", W.px(1), -W.px(1)); c.dash:SetPoint("TOPRIGHT", -W.px(1), -W.px(1))
   c.dash:SetHeight(W.px(2))
-
-  c.diamond = c:CreateTexture(nil, "ARTWORK", nil, 1)
-  Theme.register(c.diamond, "goldWash", "bg")
-  c.diamond:SetPoint("CENTER", 0, 4)
-  c.diamond:SetRotation(math.rad(45))
-  c.square = c:CreateTexture(nil, "ARTWORK", nil, 2)
-  Theme.register(c.square, "raised", "bg")
-  c.square:SetPoint("CENTER", 0, 4)
-  c.ring = c:CreateTexture(nil, "ARTWORK", nil, 3)
-  Theme.register(c.ring, "gold", "bg")
-  c.ring:SetPoint("CENTER", 0, 4)
-  c.ring:SetRotation(math.rad(45))
-  c.ember = c:CreateTexture(nil, "ARTWORK", nil, 4)
-  Theme.register(c.ember, "fel", "bg")
-  c.ember:SetPoint("CENTER", 0, 4)
-  c.ember:SetRotation(math.rad(45))
-
-  c.label = c:CreateFontString(nil, "OVERLAY")
-  c.label:SetFontObject(W.fonts().eyebrow)
-  c.label:SetPoint("BOTTOM", 0, 6)
-  c.label:SetText("HEARTHSTONE")
-  Theme.register(c.label, "gold", "text")
+  c.crest = W.crest(c, 256, "ARTWORK")
+  c.crest:SetPoint("CENTER", 0, 0)
 
   function c:Resize(w, h)
-    local s = math.floor(math.min(w, h) * 0.42)
-    self.diamond:SetSize(s, s)
-    self.square:SetSize(s * 0.62, s * 0.62)
-    self.ring:SetSize(s * 0.26, s * 0.26)
-    self.ember:SetSize(s * 0.16, s * 0.16)
-    if math.min(w, h) < 72 then self.label:Hide() else self.label:Show() end
+    local s = math.floor(math.min(w, h) * 0.86)
+    self.crest:SetSize(s, s)
   end
   return c
 end
