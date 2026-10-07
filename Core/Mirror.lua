@@ -29,6 +29,11 @@ Mirror.CARD_TTL = 90         -- seconds without a heartbeat before "host away"
 Mirror.GAP_WAIT = 3          -- seconds to wait for an out-of-order delta before asking
 Mirror.SYNC_COOLDOWN = 10    -- seconds between sync requests per game
 Mirror.JOIN_WINDOW = 30      -- a WE is honoured only this long after our own JN
+Mirror.MAX_CARDS = 50        -- lobby cards kept
+Mirror.MAX_CARDS_PER_HOST = 3
+Mirror.MAX_ROSTER = 200      -- roster entries per game (the snapshot cap)
+Mirror.MAX_PENDING = 64      -- buffered out-of-order deltas per game
+Mirror.MAX_EVENTS = 200      -- timeline entries kept per game
 Mirror.HELLO_GID = "0"
 
 local SEQUENCED = { JD = true, CL = true, UN = true, GR = true, TI = true, CX = true, TR = true }
@@ -169,13 +174,20 @@ function Mirror:requestItems(gid)
   self:emit("IQ", gid, { itemsHash = g.itemsHash }, "WHISPER", g.owner)
 end
 
+local function trimEvents(g)
+  while #g.events > Mirror.MAX_EVENTS do table.remove(g.events, 1) end
+end
+
 -- Apply one in-order delta. Only called with seq == g.seq + 1 (or from a snapshot).
 function Mirror:applyDelta(g, msg)
   local t, f = msg.type, msg.f
   g.seq = f.seq
   if t == "JD" then
+    local n = 0 for _ in pairs(g.roster) do n = n + 1 end
+    if not g.roster[f.name] and n >= Mirror.MAX_ROSTER then return end
     g.roster[f.name] = { board = f.board, canCall = f.canCall, bingoAt = f.bingoAt }
     g.events[#g.events + 1] = { kind = "join", at = self.deps.now(), name = f.name }
+    trimEvents(g)
     if self.deps.onEvent then self.deps.onEvent("join", { gid = g.gid, name = f.name }) end
   elseif t == "CL" then
     g.calls[f.idx] = f.t
@@ -184,6 +196,7 @@ function Mirror:applyDelta(g, msg)
       if g.roster[name] then g.roster[name].bingoAt = f.t end
     end
     g.events[#g.events + 1] = { kind = "call", at = f.t, idx = f.idx, winners = f.winners }
+    trimEvents(g)
     if self.deps.onEvent then self.deps.onEvent("call", { gid = g.gid, idx = f.idx, winners = f.winners }) end
   elseif t == "UN" then
     g.calls[f.idx] = nil
@@ -318,12 +331,16 @@ function Mirror:handle(msg, sender)
       self:applyDelta(g, msg)
       self:drain(g)
     else
-      g.pending[f.seq] = msg
-      g.gapSince = g.gapSince or self.deps.now()
+      local n = 0 for _ in pairs(g.pending) do n = n + 1 end
+      if n < Mirror.MAX_PENDING then
+        g.pending[f.seq] = msg
+        g.gapSince = g.gapSince or self.deps.now()
+      end
     end
     self:persist(gid)
   end
 end
+
 
 -- May `sender` take over a game currently owned by someone else? Only when
 -- the owner handed it to them (TR), or when they are already on the roster
@@ -344,6 +361,21 @@ function Mirror:onCard(gid, f, sender)
   local current = (g and g.owner) or (card and card.host)
   if current and current ~= sender and not self:mayTakeOver(gid, sender, f.gen) then return end
   local isNew = card == nil
+  if isNew then
+    -- Caps: a few games per host, a bounded lobby. Beyond them the oldest
+    -- unjoined card goes, or the new one is ignored.
+    local fromHost, total, oldest, oldestSeen = 0, 0, nil, nil
+    for id, c in pairs(self.cards) do
+      total = total + 1
+      if c.host == sender then fromHost = fromHost + 1 end
+      if not (self.games[id] and self.games[id].joined) and (not oldestSeen or c.seen < oldestSeen) then oldest, oldestSeen = id, c.seen end
+    end
+    if fromHost >= Mirror.MAX_CARDS_PER_HOST then return end
+    if total >= Mirror.MAX_CARDS then
+      if not oldest then return end
+      self.cards[oldest] = nil
+    end
+  end
   card = card or {}
   for k, v in pairs(f) do card[k] = v end
   card.host = sender

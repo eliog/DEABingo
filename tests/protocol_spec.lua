@@ -386,6 +386,62 @@ describe("items", function()
   end)
 end)
 
+describe("flood limits", function()
+  local function fakeCard(gid, owner, hub)
+    return Codec.encode("GA", gid, { gen = 1, seq = 1, state = "open", title = "Spam " .. gid, owner = owner, players = 1,
+      callMask = 0, lastActivity = hub:now(), itemsHash = "aaaaaa", createdAt = hub:now(), audience = "G" })
+  end
+
+  it("does not hand the host allowance to someone who merely broadcast a card", function()
+    local hub = Hub.new()
+    local victim = hub:addClient("Victim-Pagle", { guild = "DEA", group = "raid1" })
+    local pest = hub:addClient("Pest-Pagle", { guild = "DEA", group = "raid1" })
+    pest.net:send(fakeCard("spam1", "Pest-Pagle", hub), "GUILD"); hub:flush()
+    assert.is_truthy(victim.mirror.cards["spam1"])
+    local dropped = victim.net.stats.dropped
+    for i = 2, 30 do pest.net:send(fakeCard("spam" .. i, "Pest-Pagle", hub), "GUILD") end
+    hub:flush()
+    assert.is_true(victim.net.stats.dropped - dropped >= 20, "pest kept the player allowance of 5 per 10 s")
+    local mine = 0
+    for _, c in pairs(victim.mirror.cards) do if c.host == "Pest-Pagle" then mine = mine + 1 end end
+    assert.is_true(mine <= Mirror.MAX_CARDS_PER_HOST, "cards per host not capped: " .. mine)
+  end)
+
+  it("caps the lobby at MAX_CARDS and the roster, pending and events at their limits", function()
+    local hub = Hub.new()
+    local victim = hub:addClient("Victim-Pagle", { guild = "DEA", group = "raid1" })
+    for i = 1, Mirror.MAX_CARDS + 20 do
+      local name = ("Host%d-Pagle"):format(i)
+      local c = hub:addClient(name, { guild = "DEA", group = "raid1" })
+      c.net:send(fakeCard("g" .. i, name, hub), "GUILD")
+    end
+    hub:flush()
+    local n = 0 for _ in pairs(victim.mirror.cards) do n = n + 1 end
+    assert.is_true(n <= Mirror.MAX_CARDS, "cards not capped: " .. n)
+
+    -- a game we joined: the host floods JDs and far-future deltas
+    local hub2, host, owner, names = guildNight(2)
+    joinAll(hub2, host, names)
+    local gid = host.record.gid
+    local f = hub2.clients[names[2]]
+    for i = 1, Mirror.MAX_ROSTER + 30 do
+      local seq = f.mirror.games[gid].seq + 1
+      owner.net:send(Codec.encode("JD", gid, { seq = seq, name = ("Fake%d-Pagle"):format(i), board = Logic.dealBoard(hub2.rng), canCall = false }), "GUILD")
+      hub2:flush()
+      f.mirror.games[gid].seq = seq   -- keep the sequence moving as a real host would
+    end
+    local roster = 0 for _ in pairs(f.mirror.games[gid].roster) do roster = roster + 1 end
+    assert.is_true(roster <= Mirror.MAX_ROSTER, "roster not capped: " .. roster)
+    for i = 1, Mirror.MAX_PENDING + 50 do
+      owner.net:send(Codec.encode("CL", gid, { seq = 100000 + i, idx = 1, t = hub2:now(), winners = {} }), "GUILD")
+    end
+    hub2:flush()
+    local pending = 0 for _ in pairs(f.mirror.games[gid].pending) do pending = pending + 1 end
+    assert.is_true(pending <= Mirror.MAX_PENDING, "pending not capped: " .. pending)
+    assert.is_true(#f.mirror.games[gid].events <= Mirror.MAX_EVENTS)
+  end)
+end)
+
 describe("capacity", function()
   it("syncs a follower in a 60-player game without the host throwing", function()
     local hub, host, _, names = guildNight(60)

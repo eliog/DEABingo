@@ -88,16 +88,34 @@ function Net:channels()
   return out
 end
 
-local function isKnownHost(self, sender)
-  if self.mirror then
-    for _, card in pairs(self.mirror.cards) do if card.host == sender then return true end end
-    for _, g in pairs(self.mirror.games) do if g.owner == sender then return true end end
+-- The host allowance goes to the owner of a game this client has joined or
+-- is joining right now. A card alone is not enough: anyone can broadcast one.
+local function isKnownHost(self, sender, gid)
+  local m = self.mirror
+  if not m then return false end
+  for _, g in pairs(m.games) do if g.owner == sender and g.joined then return true end end
+  if gid then
+    local card, asked = m.cards[gid], m.joining[gid]
+    if card and card.host == sender and asked and self.deps.now() - asked <= 60 then return true end
   end
   return false
 end
 
-function Net:allow(sender)
-  local rule = isKnownHost(self, sender) and HOST_BUCKET or PLAYER_BUCKET
+-- Is this message about something we track? Anything else is ignored
+-- without charging the sender: a lobby-only client must not have its view
+-- of a host drained by that host's roster traffic for a game it never
+-- joined, and the sender gains nothing from the message either way.
+local function actionable(self, msg)
+  local t, gid = msg.type, msg.gid
+  if t == "HI" or t == "GA" then return true end
+  if HOST_BOUND[t] then return self.hosts[gid] ~= nil end
+  local m = self.mirror
+  if not m then return false end
+  return m.games[gid] ~= nil or m.cards[gid] ~= nil
+end
+
+function Net:allow(sender, gid)
+  local rule = isKnownHost(self, sender, gid) and HOST_BUCKET or PLAYER_BUCKET
   local now = self.deps.now()
   local b = self.buckets[sender]
   if not b then
@@ -142,7 +160,6 @@ function Net:dispatch(payload, channel, sender)
       return
     end
   end
-  if not self:allow(sender) then self.stats.dropped = self.stats.dropped + 1; return end
   if channel == "WHISPER" and not self.deps.isMember(sender) then self.stats.dropped = self.stats.dropped + 1; return end
 
   local msg, reason, info = Codec.decode(payload)
@@ -152,6 +169,8 @@ function Net:dispatch(payload, channel, sender)
     self:log(("dropped %dB from %s: %s"):format(#payload, sender, tostring(reason)))
     return
   end
+  if not actionable(self, msg) then return end
+  if not self:allow(sender, msg.gid) then self.stats.dropped = self.stats.dropped + 1; return end
 
   if msg.type == "HI" then
     for _, host in pairs(self.hosts) do host:handle(msg, sender) end

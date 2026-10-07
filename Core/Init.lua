@@ -344,9 +344,14 @@ end
 
 -- Toasts never interrupt a pull: in combat they wait for PLAYER_REGEN_ENABLED.
 App.pendingToasts = {}
+App.MAX_PENDING_TOASTS = 5
 function App.toast(opts)
   if not ns.Toast then return end
-  if App.inCombat() then App.pendingToasts[#App.pendingToasts + 1] = opts; return end
+  if App.inCombat() then
+    if #App.pendingToasts >= App.MAX_PENDING_TOASTS then table.remove(App.pendingToasts, 1) end
+    App.pendingToasts[#App.pendingToasts + 1] = opts
+    return
+  end
   ns.Toast.show(opts)
 end
 

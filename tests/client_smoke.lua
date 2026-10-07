@@ -162,6 +162,12 @@ for _, c in ipairs(clients) do
   sh.card.confirm.__scripts.OnClick(sh.card.confirm); pump()
   Window.sheet(cell.item); sh.card.cancel.__scripts.OnClick(sh.card.cancel)
   Window.setCombat(true); Window.setCombat(false)
+  -- #9: toasts queued during combat are capped
+  _G.UnitAffectingCombat = function() return true end
+  for i = 1, 12 do App.toast({ text = "queued " .. i }) end
+  assert(#App.pendingToasts <= App.MAX_PENDING_TOASTS, "toast queue not capped: " .. #App.pendingToasts)
+  _G.UnitAffectingCombat = function() return false end
+  App.flushToasts()
   -- history and options views, and the paste parser
   Window.show("history"); Window.refresh()
   Window.show("options"); Window.refresh()

@@ -65,6 +65,8 @@ local function scrollList(parent, rowHeight, makeRow)
   function scroll:Fill(items, fill)
     local width = self:GetWidth() - 20
     child:SetWidth(width)
+    -- rows are frames and frames are never freed: never build more than this
+    if #items > 200 then local cut = {} for i = 1, 200 do cut[i] = items[i] end items = cut end
     for i, item in ipairs(items) do
       local row = self.rows[i]
       if not row then
