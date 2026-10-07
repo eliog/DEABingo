@@ -52,7 +52,7 @@ function Chip.init(callbacks)
   chip.flashAlpha = 0
 
   W.draggable(chip, app.savePosition)
-  W.restorePosition(chip, app.position(), { point = "TOP", y = -120 })
+  W.restorePosition(chip, app.position(), { point = "TOP", y = -40 })   -- above the raid-warning area
   chip:SetScript("OnDragStart", function(self) if not self.locked then self:StartMoving() end end)
   chip:SetScript("OnClick", function() Window.toggle() end)
   W.tooltip(chip, function()

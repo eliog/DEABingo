@@ -133,6 +133,12 @@ do
   assert(toast, "toast module missing")
   local t = toast.show({ text = "probe", action = { label = "Join", fn = function() end } })
   assert(t and t.__shown, "toast did not show")
+  -- #21: dragging a toast saves the stack's anchor
+  t.GetCenter = function() return 640, 300 end
+  t.GetTop = function() return 330 end
+  t.__scripts.OnDragStop(t)
+  local saved = beta.ns.App.store.db.options.toasts
+  assert(saved and saved.point == "TOP" and saved.x == 640, "toast anchor not saved")
   t.action.__scripts.OnClick(t.action)
 end
 run(beta, "join 1")

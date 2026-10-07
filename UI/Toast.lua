@@ -20,6 +20,7 @@ Toast.GAP = 6
 
 local pool, live = {}, {}
 local anchor
+local app   -- savePosition(pos), position()
 
 local function layout()
   for i, t in ipairs(live) do
@@ -51,6 +52,27 @@ local function newToast()
   t.action:SetPoint("RIGHT", -34, 0)
   t.close = W.closeButton(t, function() dismiss(t) end)
   t.close:SetPoint("RIGHT", -4, 0)
+  -- Dragging any toast moves the stack: the anchor follows the toast's
+  -- top edge, offset by its place in the stack, and the spot is remembered.
+  t:SetMovable(true)
+  t:EnableMouse(true)
+  t:RegisterForDrag("LeftButton")
+  t:SetScript("OnDragStart", function(self) self:StartMoving() end)
+  t:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    local index = 1
+    for i, x in ipairs(live) do if x == self then index = i end end
+    local cx = self:GetCenter()
+    local top = self:GetTop()
+    if cx and top then
+      local scale = anchor:GetEffectiveScale()
+      local pos = { point = "TOP", relPoint = "BOTTOMLEFT", x = cx, y = top + (index - 1) * (Toast.HEIGHT + Toast.GAP) }
+      anchor:ClearAllPoints()
+      anchor:SetPoint("TOP", UIParent, "BOTTOMLEFT", pos.x, pos.y)
+      if app and app.savePosition then app.savePosition(pos) end
+    end
+    layout()
+  end)
   t:SetScript("OnUpdate", function(self, elapsed)
     self.ttl = self.ttl - elapsed
     if self.ttl <= 0 then dismiss(self) end
@@ -59,11 +81,14 @@ local function newToast()
   return t
 end
 
-function Toast.init()
+-- Default: low centre, above the action bars, clear of the raid-warning
+-- and error text that Blizzard puts near the top.
+function Toast.init(callbacks)
+  app = callbacks
   if anchor then return end
   anchor = CreateFrame("Frame", "DEABingoToasts", UIParent)
   anchor:SetSize(Toast.WIDTH, 1)
-  anchor:SetPoint("TOP", UIParent, "TOP", 0, -168)
+  W.restorePosition(anchor, app and app.position and app.position(), { point = "BOTTOM", y = 230 })
 end
 
 function Toast.show(opts)

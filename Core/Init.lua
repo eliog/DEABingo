@@ -488,7 +488,7 @@ function App.setup()
     ns.Window.init(App.ui)
     ns.Chip.init(App.chipUi)
     ns.Chip.applyOptions(App.store.db.options)
-    if ns.Toast then ns.Toast.init() end
+    if ns.Toast then ns.Toast.init(App.toastUi) end
     App.setupMinimap()
     App.uiRefresh()
   end
@@ -698,6 +698,11 @@ App.ui = {
     for _, s in ipairs(App.store:itemSets()) do out[#out + 1] = { name = s.title, items = s.items, titleHint = s.title, usedAt = s.usedAt, saved = true } end
     return out
   end,
+}
+
+App.toastUi = {
+  savePosition = function(pos) App.store.db.options.toasts = pos end,
+  position = function() return App.store.db.options.toasts end,
 }
 
 App.chipUi = {
