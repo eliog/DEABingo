@@ -352,6 +352,20 @@ describe("resilience", function()
   end)
 end)
 
+describe("game events", function()
+  it("tells both the host and the followers about calls, undos and joins", function()
+    local hub, host, owner, names = guildNight(2)
+    local hostEvents, followerEvents = {}, {}
+    owner.hostDeps.onEvent = function(kind, info) hostEvents[#hostEvents + 1] = kind .. ":" .. tostring(info.idx or info.name) end
+    hub.clients[names[2]].mirror.deps.onEvent = function(kind, info) followerEvents[#followerEvents + 1] = kind .. ":" .. tostring(info.idx or info.name) end
+    joinAll(hub, host, names)
+    host:call(3); hub:flush()
+    host:undo(3); hub:flush()
+    assert.are.same({ "join:" .. names[2], "call:3", "undo:3" }, hostEvents)
+    assert.are.same({ "call:3", "undo:3" }, followerEvents)
+  end)
+end)
+
 describe("item cache", function()
   it("fills items from the local cache instead of asking the host again", function()
     local hub, host, _, names = guildNight(2)

@@ -10,6 +10,7 @@
     deps.persist(gid, state)            optional, called after every change to a joined game
     deps.onCards()                      optional, called when the lobby cards change
     deps.lookupItems(hash)              optional, returns a cached {title, items} for a hash
+    deps.onEvent(kind, info)            optional: "call" {gid, idx, winners}, "undo" {gid, idx, revoked}, "join" {gid, name}
     deps.log(text)                      optional
 ]]
 
@@ -160,6 +161,7 @@ function Mirror:applyDelta(g, msg)
   if t == "JD" then
     g.roster[f.name] = { board = f.board, canCall = f.canCall, bingoAt = f.bingoAt }
     g.events[#g.events + 1] = { kind = "join", at = self.deps.now(), name = f.name }
+    if self.deps.onEvent then self.deps.onEvent("join", { gid = g.gid, name = f.name }) end
   elseif t == "CL" then
     g.calls[f.idx] = f.t
     g.lastActivity = f.t
@@ -167,6 +169,7 @@ function Mirror:applyDelta(g, msg)
       if g.roster[name] then g.roster[name].bingoAt = f.t end
     end
     g.events[#g.events + 1] = { kind = "call", at = f.t, idx = f.idx, winners = f.winners }
+    if self.deps.onEvent then self.deps.onEvent("call", { gid = g.gid, idx = f.idx, winners = f.winners }) end
   elseif t == "UN" then
     g.calls[f.idx] = nil
     g.lastActivity = f.t
@@ -178,6 +181,7 @@ function Mirror:applyDelta(g, msg)
       local e = g.events[i]
       if e.kind == "call" and e.idx == f.idx then table.remove(g.events, i); break end
     end
+    if self.deps.onEvent then self.deps.onEvent("undo", { gid = g.gid, idx = f.idx, revoked = f.revoked }) end
   elseif t == "GR" then
     if g.roster[f.name] then g.roster[f.name].canCall = f.canCall end
   elseif t == "TI" then

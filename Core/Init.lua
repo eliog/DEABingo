@@ -195,7 +195,44 @@ function App.hostDeps()
     send = function(p, c, t) return App.net:send(p, c, t) end,
     persist = function(record) App.store:saveHosted(record); App.uiRefresh() end,
     isMember = App.isMember,
+    onEvent = function(kind, info) App.onGameEvent(kind, info) end,
   }
+end
+
+-------------------------------------------------------------------- sounds
+
+-- Blizzard sound kits by id, so this works without the SOUNDKIT table.
+local SOUNDS = {
+  call = 856,      -- IG_MAINMENU_OPTION_CHECKBOX_ON: a soft tick
+  undo = 857,      -- IG_MAINMENU_OPTION_CHECKBOX_OFF
+  bingo = 8960,    -- READY_CHECK
+}
+
+function App.inCombat()
+  local okay, v = pcall(UnitAffectingCombat, "player")
+  return okay and v == true
+end
+
+function App.playSound(kind)
+  local o = App.store and App.store.db.options or {}
+  if o.sounds == false then return end
+  if o.quietInCombat ~= false and App.inCombat() then return end
+  local id = SOUNDS[kind]
+  if id then pcall(PlaySound, id, "Master") end
+end
+
+-- Game events from the host or the mirror, for this client's game only.
+function App.onGameEvent(kind, info)
+  if info.gid ~= App.current then return end
+  local me = App.me()
+  if kind == "call" then
+    if ns.Chip then ns.Chip.flash() end
+    local mine = false
+    for _, name in ipairs(info.winners or {}) do if name == me then mine = true end end
+    App.playSound(mine and "bingo" or "call")
+  elseif kind == "undo" then
+    App.playSound("undo")
+  end
 end
 
 -- Coalesce UI refreshes: a join wave persists dozens of times a second.
@@ -224,6 +261,7 @@ function App.setup()
     persist = function(gid, g) App.store:saveJoined(gid, g); App.uiRefresh() end,
     onCards = function() App.uiRefresh() end,
     lookupItems = function(hash) local set = App.store.db.itemSets[hash]; if type(set) == "table" then return set end end,
+    onEvent = function(kind, info) App.onGameEvent(kind, info) end,
   })
   App.net.mirror = App.mirror
   App.hosts = {}
@@ -410,7 +448,7 @@ commands.hide = function() if ns.Window and ns.Window.isShown() then ns.Window.t
 commands.help = function()
   print_("/dea new <title> | new raid <title> | items | item <n> <text> | open | list | join <n>")
   print_("/dea board | call <n> | undo <n> | standings | grant <Name-Realm> | revoke <Name-Realm> | close")
-  print_("/dea show | hide | status | net | probe | reset | debug | test")
+  print_("/dea show | hide | sound | quiet | status | net | probe | reset | debug | test")
 end
 
 commands.status = function()
@@ -625,6 +663,18 @@ end
 commands.net = function()
   local s = App.net.stats
   print_(("sent %d, received %d, dropped %d"):format(s.sent, s.received, s.dropped))
+end
+
+commands.sound = function()
+  local o = App.store.db.options
+  o.sounds = not (o.sounds ~= false)
+  print_("sounds " .. (o.sounds and "on" or "off"))
+end
+
+commands.quiet = function()
+  local o = App.store.db.options
+  o.quietInCombat = not (o.quietInCombat ~= false)
+  print_("quiet in combat " .. (o.quietInCombat and "on" or "off"))
 end
 
 commands.debug = function()

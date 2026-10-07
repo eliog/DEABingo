@@ -11,6 +11,7 @@
     deps.send(payload, channel, target)   channel "GUILD" | "GROUP" | "WHISPER"
     deps.persist(record)              write the record to SavedVariables
     deps.isMember(name, audience)     may this player join? "G": in my guild, "R": in my group
+    deps.onEvent(kind, info)          optional: "call" {gid, idx, winners}, "undo" {gid, idx, revoked}, "join" {gid, name}
     deps.log(text)                    optional
 
   The record is plain data and is persisted after every mutation, so a host
@@ -214,6 +215,7 @@ function Host:addPlayer(name, silent)
     self:emit("JD", { seq = r.seq, name = name, board = entry.board, canCall = entry.canCall, bingoAt = entry.bingoAt })
   end
   self:persist()
+  if self.deps.onEvent then self.deps.onEvent("join", { gid = r.gid, name = name }) end
   return entry, true
 end
 
@@ -283,6 +285,7 @@ function Host:call(idx)
   local winners = self:reconcile(now)
   self:emit("CL", { seq = self:bump(), idx = idx, t = now, winners = winners })
   self:persist()
+  if self.deps.onEvent then self.deps.onEvent("call", { gid = r.gid, idx = idx, winners = winners }) end
   return winners
 end
 
@@ -296,6 +299,7 @@ function Host:undo(idx)
   local _, revoked = self:reconcile(now)
   self:emit("UN", { seq = self:bump(), idx = idx, t = now, revoked = revoked })
   self:persist()
+  if self.deps.onEvent then self.deps.onEvent("undo", { gid = r.gid, idx = idx, revoked = revoked }) end
   return revoked
 end
 
