@@ -19,7 +19,23 @@ Made for the Drip Enforcement Agency, and it works for any guild or group.
 - **Five in a row wins.** The night continues past the first bingo; winners are ranked by time.
 - **The chip** at the top of the screen keeps the score while the window is closed. Nothing
   pops or makes a sound during combat.
-- **History** keeps every finished game readable. **Options** has the theme, sounds and chip.
+- **History** keeps the last 20 finished games readable. **Options** has the theme, sounds,
+  the chip and the minimap button.
+
+## What it shares and keeps
+
+Squares usually name real guildmates, so it is worth knowing where they go.
+
+- **Opening a game broadcasts it.** The title, all 24 squares and the list of players go to
+  everyone who can hear the game. In Guild mode, the default, that is every guild member
+  online, in the raid or not. In Raid mode it is everyone grouped with you, pugs included.
+  Pick Raid mode only when the squares are fit for strangers.
+- **Nothing is ever posted to chat.** Everything travels on the addon channel, which only
+  other copies of the addon read. Players without the addon see nothing.
+- **Kept on this computer**, in the game's SavedVariables files in plain text: every set of
+  squares you have hosted or played, the last 20 finished games with each player's character
+  name and bingo time, and the games you have been offered. Tools that back up or sync your
+  WTF folder carry these along. Deleting the addon's SavedVariables file clears them.
 
 ## Installing
 
