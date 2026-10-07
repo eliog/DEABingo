@@ -1,0 +1,25 @@
+## Interface: 16001
+## Title: DEA Bingo
+## Notes: Raid Bingo for the Drip Enforcement Agency, played in the raid. Fonts Cinzel and Alegreya Sans under the SIL OFL.
+## Author: eliog
+## Version: @project-version@
+## SavedVariables: DEABingoDB
+## SavedVariablesPerCharacter: DEABingoCharDB
+## IconTexture: Interface\AddOns\DEABingo\Media\icon.tga
+## AddonCompartmentFunc: DEABingo_OnCompartmentClick
+## OptionalDeps: Ace3, !BugGrabber
+## X-License: MIT
+## X-Category: Miscellaneous
+## X-Website: https://raidbingo.com
+
+embeds.xml
+
+Core\Logic.lua
+Core\Codec.lua
+Core\Host.lua
+Core\Mirror.lua
+Core\Net.lua
+Core\Store.lua
+Core\Presets.lua
+Core\Compat.lua
+Core\Init.lua

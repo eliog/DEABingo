@@ -1,0 +1,19 @@
+package-as: DEABingo
+
+# Libraries are pulled at package time, never vendored by hand. Pin by tag
+# when a stable tag exists; trunk is Ace3's convention.
+externals:
+  Libs/LibStub: https://repos.wowace.com/wow/ace3/trunk/LibStub
+  Libs/CallbackHandler-1.0: https://repos.wowace.com/wow/ace3/trunk/CallbackHandler-1.0
+  Libs/AceComm-3.0: https://repos.wowace.com/wow/ace3/trunk/AceComm-3.0
+
+ignore:
+  - tests
+  - scripts
+  - docs
+  - design
+  - PLAN.md
+  - .busted
+  - .githooks
+
+enable-nolib-creation: no

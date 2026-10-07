@@ -1,0 +1,25 @@
+# embedded libraries come from .pkgmeta at release and scripts/fetch-libs.sh locally
+Libs/
+
+# packager output
+.release/
+
+# the client writes these next to an addon it loads
+*.bak
+*.old
+
+# guild squares name real people; keep them out of a public repo
+presets.json
+presets.*.lua
+
+# saved variables and client folders, if anything ever copies them here
+WTF/
+SavedVariables/
+
+# secrets — never commit
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
