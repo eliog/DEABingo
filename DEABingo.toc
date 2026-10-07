@@ -20,6 +20,12 @@ Core\Host.lua
 Core\Mirror.lua
 Core\Net.lua
 Core\Store.lua
+Core\View.lua
 Core\Presets.lua
 Core\Compat.lua
+UI\Theme.lua
+UI\Widgets.lua
+UI\Board.lua
+UI\Window.lua
+UI\Chip.lua
 Core\Init.lua

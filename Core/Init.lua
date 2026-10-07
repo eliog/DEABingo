@@ -8,7 +8,7 @@
 ]]
 
 local ADDON, ns = ...
-local Logic, Codec, Host, Mirror, Net, Store, Compat = ns.Logic, ns.Codec, ns.Host, ns.Mirror, ns.Net, ns.Store, ns.Compat
+local Logic, Codec, Host, Mirror, Net, Store, Compat, View = ns.Logic, ns.Codec, ns.Host, ns.Mirror, ns.Net, ns.Store, ns.Compat, ns.View
 
 ns.name = ADDON
 local App = {}
@@ -193,9 +193,20 @@ function App.hostDeps()
     now = GetServerTime, me = App.me(), log = debug_,
     rng = { int = function(_, n) return math.random(0, n - 1) end },
     send = function(p, c, t) return App.net:send(p, c, t) end,
-    persist = function(record) App.store:saveHosted(record) end,
+    persist = function(record) App.store:saveHosted(record); App.uiRefresh() end,
     isMember = App.isMember,
   }
+end
+
+-- Coalesce UI refreshes: a join wave persists dozens of times a second.
+function App.uiRefresh()
+  if not ns.Window or App.refreshScheduled then return end
+  App.refreshScheduled = true
+  C_Timer.After(0.05, function()
+    App.refreshScheduled = false
+    ns.Window.refresh()
+    ns.Chip.update(App.currentView())
+  end)
 end
 
 function App.setup()
@@ -210,7 +221,8 @@ function App.setup()
     now = GetServerTime, me = me, log = debug_,
     send = function(p, c, t) return App.net:send(p, c, t) end,
     channels = function() return App.net:channels() end,
-    persist = function(gid, g) App.store:saveJoined(gid, g) end,
+    persist = function(gid, g) App.store:saveJoined(gid, g); App.uiRefresh() end,
+    onCards = function() App.uiRefresh() end,
   })
   App.net.mirror = App.mirror
   App.hosts = {}
@@ -228,6 +240,11 @@ function App.setup()
   if AceComm then AceComm:RegisterComm(Net.PREFIX, onComm) end
   App.ticker = C_Timer.NewTicker(1, App.tick)
   App.ready = true
+  if ns.Window and rawget(_G, "UIParent") then
+    ns.Window.init(App.ui)
+    ns.Chip.init(App.chipUi)
+    App.uiRefresh()
+  end
   return true
 end
 
@@ -279,6 +296,85 @@ local function currentGame()
   return nil, nil
 end
 
+-- The view model for the current game, or nil when not in one.
+function App.currentView()
+  local host, game = currentGame()
+  if host then return View.fromHost(host.record, App.me()) end
+  if game then return View.fromMirror(game, App.me(), App.mirror.cards[game.gid]) end
+  return nil
+end
+
+function App.createGame(opts)
+  local host = Host.new(App.hostDeps())
+  local audience = opts.audience
+  if audience == "G" and not App.inGuild() then audience = "R" end
+  local record, err = host:create({ title = opts.title, items = opts.items, audience = audience })
+  if not record then return nil, err end
+  App.hosts[record.gid] = host
+  App.net:attachHost(host)
+  App.current = record.gid
+  if opts.open ~= false then
+    local okay, err2 = host:open()
+    if not okay then return nil, err2 end
+  end
+  App.store:saveItemSet(record.itemsHash, record.title, record.items)
+  App.uiRefresh()
+  return record
+end
+
+function App.callSquare(idx, undo)
+  local host, game = currentGame()
+  if host then
+    local result, err = undo and host:undo(idx) or host:call(idx)
+    return result ~= nil, err
+  elseif game then
+    return App.mirror:requestCall(game.gid, idx, undo)
+  end
+  return nil, "not in a game"
+end
+
+App.ui = {
+  lobby = function()
+    local rows = View.lobby(App.mirror.cards, (function() local t = {} for gid, h in pairs(App.hosts) do t[gid] = h.record end return t end)(), App.me())
+    for _, r in ipairs(rows) do r.joined = App.mirror.games[r.gid] ~= nil and App.mirror.games[r.gid].joined end
+    return rows
+  end,
+  view = App.currentView,
+  join = function(gid)
+    local okay, err = App.mirror:join(gid)
+    if okay then App.current = gid; ns.Window.show("game") else print_(tostring(err)) end
+  end,
+  open = function(gid) App.current = gid; ns.Window.show("game") end,
+  create = function(opts) return App.createGame(opts) end,
+  call = function(idx, undo)
+    local okay, err = App.callSquare(idx, undo)
+    if not okay and err then print_(tostring(err)) end
+  end,
+  grant = function(name, on)
+    local host = currentGame()
+    if host then host:grant(name, on) end
+  end,
+  close = function()
+    local host = currentGame()
+    if host then host:close() end
+  end,
+  leaveToLobby = function() App.current = nil end,
+  savePosition = function(pos) App.store.db.options.window = pos end,
+  position = function() return App.store.db.options.window end,
+  defaultAudience = function() return App.inGuild() and "G" or "R" end,
+  itemSets = function()
+    local out = {}
+    for _, p in ipairs(ns.PRESETS) do out[#out + 1] = { name = p.name, items = p.items } end
+    for _, s in ipairs(App.store:itemSets()) do out[#out + 1] = { name = s.title, items = s.items, titleHint = s.title } end
+    return out
+  end,
+}
+
+App.chipUi = {
+  savePosition = function(pos) App.store.db.options.chip = pos end,
+  position = function() return App.store.db.options.chip end,
+}
+
 local function itemsOf(host, game)
   if host then return host.record.items end
   if game then return game.items end
@@ -304,10 +400,15 @@ end
 
 local commands = {}
 
+commands.show = function()
+  if ns.Window then ns.Window.toggle() else commands.status() end
+end
+commands.hide = function() if ns.Window and ns.Window.isShown() then ns.Window.toggle() end end
+
 commands.help = function()
   print_("/dea new <title> | new raid <title> | items | item <n> <text> | open | list | join <n>")
   print_("/dea board | call <n> | undo <n> | standings | grant <Name-Realm> | revoke <Name-Realm> | close")
-  print_("/dea status | net | probe | reset | debug | test")
+  print_("/dea show | hide | status | net | probe | reset | debug | test")
 end
 
 commands.status = function()
@@ -546,7 +647,7 @@ end
 local function onSlash(msg)
   msg = (msg or ""):gsub("^%s+", ""):gsub("%s+$", "")
   local cmd, rest = msg:match("^(%S+)%s*(.*)$")
-  cmd = (cmd or "status"):lower()
+  cmd = (cmd or (ns.Window and "show" or "status")):lower()
   if not App.ready and cmd ~= "test" and cmd ~= "debug" and cmd ~= "help" then print_("not ready yet"); return end
   local fn = commands[cmd]
   if not fn then commands.help(); return end
@@ -556,7 +657,7 @@ end
 -------------------------------------------------------------------- events
 
 local frame = CreateFrame("Frame")
-for _, ev in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "GUILD_ROSTER_UPDATE", "CHAT_MSG_ADDON" }) do
+for _, ev in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "GUILD_ROSTER_UPDATE", "CHAT_MSG_ADDON", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED" }) do
   Compat.RegisterEvent(frame, ev)
 end
 frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
@@ -596,9 +697,13 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
     App.helloSoon()
   elseif event == "GUILD_ROSTER_UPDATE" then
     App.refreshGuild()
+  elseif event == "PLAYER_REGEN_DISABLED" then
+    if ns.Window then ns.Window.setCombat(true) end
+  elseif event == "PLAYER_REGEN_ENABLED" then
+    if ns.Window then ns.Window.setCombat(false) end
   end
 end)
 
 function DEABingo_OnCompartmentClick()
-  onSlash("status")
+  onSlash("show")
 end

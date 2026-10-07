@@ -8,6 +8,7 @@
     deps.send(payload, channel, target)
     deps.channels()                     list of broadcast channels available now ("GUILD", "GROUP")
     deps.persist(gid, state)            optional, called after every change to a joined game
+    deps.onCards()                      optional, called when the lobby cards change
     deps.log(text)                      optional
 ]]
 
@@ -283,6 +284,7 @@ function Mirror:onCard(gid, f, sender)
     end
     if f.itemsHash ~= g.itemsHash then g.itemsHash = f.itemsHash; g.items = nil; self:requestItems(gid) end
   end
+  if self.deps.onCards then self.deps.onCards() end
 end
 
 function Mirror:noteNewer(ver)
@@ -293,9 +295,12 @@ end
 
 function Mirror:tick()
   local now = self.deps.now()
+  local changed = false
   for _, card in pairs(self.cards) do
-    card.away = (now - card.seen) > Mirror.CARD_TTL
+    local away = (now - card.seen) > Mirror.CARD_TTL
+    if away ~= card.away then card.away = away; changed = true end
   end
+  if changed and self.deps.onCards then self.deps.onCards() end
   for gid, g in pairs(self.games) do
     -- A gap means a call went missing: ask now, and keep asking every
     -- GAP_WAIT seconds until the snapshot closes it.
