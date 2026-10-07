@@ -884,11 +884,22 @@ end
 function Window.isShown() return win and win:IsShown() end
 function Window.frame() return win end
 
+-- In combat the window dims and takes no clicks. EnableMouse(false) on a
+-- parent does not reach its children, so a mouse-enabled scrim does it.
 function Window.setCombat(inCombat)
   if not win then return end
   win:SetAlpha(inCombat and 0.4 or 1)
-  win:EnableMouse(not inCombat)
-  for _, v in pairs(win.views) do v:EnableMouse(not inCombat) end
+  if not win.combatScrim then
+    local sc = CreateFrame("Button", nil, win)
+    sc:SetAllPoints(win)
+    sc:SetFrameLevel((win:GetFrameLevel() or 0) + 40)
+    sc:EnableMouse(true)
+    sc:RegisterForClicks("AnyUp")
+    sc:SetScript("OnClick", function() end)   -- swallow
+    sc:Hide()
+    win.combatScrim = sc
+  end
+  if inCombat then win.combatScrim:Show() else win.combatScrim:Hide() end
 end
 
 -------------------------------------------------------------------- views

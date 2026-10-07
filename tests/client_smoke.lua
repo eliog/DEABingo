@@ -190,7 +190,10 @@ for _, c in ipairs(clients) do
   assert(sh.__shown, "sheet did not open on click")
   sh.card.confirm.__scripts.OnClick(sh.card.confirm); pump()
   Window.sheet(cell.item); sh.card.cancel.__scripts.OnClick(sh.card.cancel)
-  Window.setCombat(true); Window.setCombat(false)
+  Window.setCombat(true)
+  assert(Window.frame().combatScrim and Window.frame().combatScrim.__shown, "combat scrim not shown")
+  Window.setCombat(false)
+  assert(not Window.frame().combatScrim.__shown, "combat scrim still shown")
   -- #9: toasts queued during combat are capped
   _G.UnitAffectingCombat = function() return true end
   for i = 1, 12 do App.toast({ text = "queued " .. i }) end
