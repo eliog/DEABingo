@@ -508,6 +508,12 @@ end
 -- The game commands act on: the current one, else the only open game this
 -- client hosts or has joined.
 local function currentGame()
+  -- A finished game is history, not the current game: with nothing live the
+  -- window opens on the lobby.
+  if App.current then
+    local h, g = App.hosts[App.current], App.mirror.games[App.current]
+    if (h and h.record.state == "closed") or (g and g.state == "closed") then App.current = nil end
+  end
   if App.current and App.hosts[App.current] then return App.hosts[App.current], nil end
   if App.current and App.mirror.games[App.current] then return nil, App.mirror.games[App.current] end
   local onlyHost, onlyGame, n = nil, nil, 0
