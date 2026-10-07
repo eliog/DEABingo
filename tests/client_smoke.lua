@@ -107,6 +107,7 @@ end
 run(alpha, "status")
 run(alpha, "new Tuesday MC")
 run(alpha, "item 3 Someone forgets the buff")
+run(alpha, "item 4 Fake |cff00ff00link|r here")   -- a pipe is legal text; it must render literally
 run(alpha, "open")
 run(beta, "list")
 -- beta should have been offered the game by a toast with a Join button
@@ -145,6 +146,12 @@ for _, c in ipairs(clients) do
   local v = App.currentView()
   assert(v, c.name .. " has no view")
   Window.frame().views.game.board:SetView(v); Window.frame().views.game.board:Layout()
+  -- #8: item text reaches the board escaped
+  for _, cell in ipairs(Window.frame().views.game.board.cells) do
+    if cell.item == 3 then
+      assert(cell.text.__text == "Fake ||cff00ff00link||r here", "board cell text not escaped: " .. tostring(cell.text.__text))
+    end
+  end
   Chip.update(v); Chip.flash()
   -- hover + click a cell
   local cell = Window.frame().views.game.board.cells[1]

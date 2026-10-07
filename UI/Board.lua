@@ -27,7 +27,7 @@ local function measureFits(items, size, width, height)
   ruler:SetWidth(width - Board.INSET * 2)
   W.setFont(ruler, "body", size, "")
   for _, item in ipairs(items) do
-    ruler:SetText(item)
+    ruler:SetText(Logic.escape(item))
     if ruler:GetStringHeight() > height - Board.INSET * 2 then return false end
   end
   return true
@@ -89,7 +89,7 @@ local function newCell(board, position)
     local v = board.view
     if v and self.item ~= nil and v.items then
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:SetText(v.items[self.item + 1] or "", 0.91, 0.87, 0.78, 1, true)
+      GameTooltip:SetText(Logic.escape(v.items[self.item + 1] or ""), 0.91, 0.87, 0.78, 1, true)
       if self.called then
         local when
         for _, call in ipairs(v.calls) do if call.idx == self.item then when = call.t end end
@@ -174,7 +174,7 @@ function Board:SetView(view)
       local isWinning = winning[p] == true
       c.called = isCalled
       W.setFont(c.text, isCalled and "bodyBold" or "body", self.fontSize)
-      c.text:SetText(text)
+      c.text:SetText(Logic.escape(text))   -- player text: a pipe must never become an escape code
       if isWinning then
         Theme.set(c.face, "fel"); W.borderRole(c.border, "fel")
         Theme.set(c.text, "felInk"); Theme.set(c.strike, "felInk"); Theme.set(c.check, "felInk")
