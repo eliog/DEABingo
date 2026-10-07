@@ -63,10 +63,11 @@ Details are in `PLAN.md`.
 
 ### Releasing
 
-Push a tag like `v0.1.0`. The release workflow runs the BigWigs packager, which pulls the
-libraries from `.pkgmeta`, builds the zip and publishes a GitHub release. With `CF_API_KEY`
-set as a repository secret it uploads to CurseForge as well (the project id is in the TOC);
-`WAGO_API_TOKEN` does the same for Wago.
+Add a section to the top of `CHANGELOG.md`, then push a tag like `v0.1.1`. The release
+workflow runs the BigWigs packager, which pulls the libraries from `.pkgmeta`, builds the zip
+and uploads it to CurseForge (the project id is in the TOC; `CF_API_KEY` is a repository
+secret; `WAGO_API_TOKEN` does the same for Wago). A separate step then creates the GitHub
+release with the zip, using the top changelog section as the notes.
 
 ## Licence
 
