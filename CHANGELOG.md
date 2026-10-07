@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Update notice: players hear once per session when a newer release is around, and a release can set a minimum version to join.
+- Crest textures re-keyed from the source: the shield interior stays filled, so the D and A no longer show black counters and the speckle between the letters is gone. `design/crest-key.py` regenerates them.
+
 ## v0.1.1-beta1 (2026-10-07)
 
 Prerelease for guild testers: every fix from the 2026-10-07 review (GitHub issues #1 to #35).
