@@ -16,6 +16,8 @@ ns.Window = Window
 local RAIL = 290
 local PAD = 14
 local HEADER = 54
+local TABS = 32
+local TOP = HEADER + TABS   -- where every view starts
 local FOOTER = 44
 
 local win   -- the single frame
@@ -109,6 +111,65 @@ local function buildHeader(f)
   return h
 end
 
+-- The tab strip: Game (while in one), Games, History, Options.
+local TAB_DEFS = {
+  { key = "game", label = "GAME" },
+  { key = "lobby", label = "GAMES" },
+  { key = "history", label = "HISTORY" },
+  { key = "options", label = "OPTIONS" },
+}
+
+local function buildTabs(f)
+  local t = CreateFrame("Frame", nil, f)
+  t:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -HEADER)
+  t:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -HEADER)
+  t:SetHeight(TABS)
+  t.bg = W.rect(t, "surface"); t.bg:SetAllPoints()
+  t.rule = t:CreateTexture(nil, "BORDER"); Theme.register(t.rule, "line", "bg")
+  t.rule:SetPoint("BOTTOMLEFT"); t.rule:SetPoint("BOTTOMRIGHT"); t.rule:SetHeight(W.px(1))
+  t.tabs = {}
+  for _, def in ipairs(TAB_DEFS) do
+    local b = CreateFrame("Button", nil, t)
+    b:SetHeight(TABS)
+    b.label = W.text(b, W.fonts().eyebrow, "inkDim", "CENTER")
+    b.label:SetPoint("CENTER", 0, 1)
+    b.label:SetText(def.label)
+    b.under = b:CreateTexture(nil, "ARTWORK"); Theme.register(b.under, "fel", "bg")
+    b.under:SetPoint("BOTTOMLEFT", 0, 0); b.under:SetPoint("BOTTOMRIGHT", 0, 0); b.under:SetHeight(W.px(2))
+    b.under:Hide()
+    b.key = def.key
+    b:SetScript("OnEnter", function(self) if not self.active then Theme.set(self.label, "ink") end end)
+    b:SetScript("OnLeave", function(self) if not self.active then Theme.set(self.label, "inkDim") end end)
+    b:SetScript("OnClick", function(self) Window.show(self.key) end)
+    t.tabs[def.key] = b
+  end
+  -- lay out left to right; the Game tab may be hidden
+  function t:Layout(showGame)
+    local x = PAD - 6
+    for _, def in ipairs(TAB_DEFS) do
+      local b = self.tabs[def.key]
+      if def.key == "game" and not showGame then
+        b:Hide()
+      else
+        b:Show()
+        local w = (b.label:GetStringWidth() or 60) + 28
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", self, "TOPLEFT", x, 0)
+        b:SetWidth(w)
+        x = x + w
+      end
+    end
+  end
+  function t:SetActive(key)
+    for k, b in pairs(self.tabs) do
+      b.active = (k == key)
+      Theme.set(b.label, b.active and "ink" or "inkDim")
+      if b.active then b.under:Show() else b.under:Hide() end
+    end
+  end
+  return t
+end
+
 local function buildFooter(f)
   local b = CreateFrame("Frame", nil, f)
   b:SetPoint("BOTTOMLEFT"); b:SetPoint("BOTTOMRIGHT"); b:SetHeight(FOOTER)
@@ -127,7 +188,7 @@ end
 -- Game view: board on the left, rail on the right.
 local function buildGame(f)
   local g = CreateFrame("Frame", nil, f)
-  g:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -HEADER)
+  g:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -TOP)
   g:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, FOOTER)
 
   g.boardHolder = CreateFrame("Frame", nil, g)
@@ -274,24 +335,12 @@ end
 -- Lobby: open games and a start button.
 local function buildLobby(f)
   local l = CreateFrame("Frame", nil, f)
-  l:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -HEADER)
+  l:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -TOP)
   l:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, FOOTER)
   l.head = W.text(l, W.fonts().eyebrow, "inkFaint")
   l.head:SetPoint("TOPLEFT", PAD + 2, -PAD - 4)
   l.head:SetText("GAMES AROUND YOU")
-  local function link(text, x, view)
-    local fs = W.text(l, W.fonts().eyebrow, "inkDim", "RIGHT")
-    fs:SetPoint("TOPRIGHT", -PAD - x, -PAD - 4)
-    fs:SetText(text)
-    local b = CreateFrame("Button", nil, l)
-    b:SetAllPoints(fs)
-    b:SetScript("OnEnter", function() Theme.set(fs, "ink") end)
-    b:SetScript("OnLeave", function() Theme.set(fs, "inkDim") end)
-    b:SetScript("OnClick", function() Window.show(view) end)
-    return fs
-  end
-  l.historyLink = link("HISTORY", 90, "history")
-  l.optionsLink = link("OPTIONS", 0, "options")
+
   l.empty = W.text(l, W.fonts().body, "inkDim", "CENTER")
   l.empty:SetPoint("CENTER", 0, 20)
   l.empty:SetWidth(420)
@@ -312,7 +361,7 @@ end
 -- Setup: title, 24 squares, audience, open.
 local function buildSetup(f)
   local s = CreateFrame("Frame", nil, f)
-  s:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -HEADER)
+  s:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -TOP)
   s:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, FOOTER)
 
   s.titleLabel = W.text(s, W.fonts().eyebrow, "inkFaint"); s.titleLabel:SetPoint("TOPLEFT", PAD + 2, -PAD - 2); s.titleLabel:SetText("TITLE")
@@ -574,7 +623,7 @@ end
 -- History: finished games, newest first; each opens read-only.
 local function buildHistory(f)
   local h = CreateFrame("Frame", nil, f)
-  h:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -HEADER)
+  h:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -TOP)
   h:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, FOOTER)
   h.head = W.text(h, W.fonts().eyebrow, "inkFaint")
   h.head:SetPoint("TOPLEFT", PAD + 2, -PAD - 4)
@@ -608,7 +657,7 @@ local OPTIONS = {
 
 local function buildOptions(f)
   local o = CreateFrame("Frame", nil, f)
-  o:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -HEADER)
+  o:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -TOP)
   o:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, FOOTER)
   o.head = W.text(o, W.fonts().eyebrow, "inkFaint")
   o.head:SetPoint("TOPLEFT", PAD + 2, -PAD - 4)
@@ -669,6 +718,7 @@ function Window.init(callbacks)
   tinsert(UISpecialFrames, "DEABingoFrame")
 
   win.header = buildHeader(win)
+  win.tabs = buildTabs(win)
   win.footer = buildFooter(win)
   win.views = { game = buildGame(win), lobby = buildLobby(win), setup = buildSetup(win), history = buildHistory(win), options = buildOptions(win) }
   hideAll(win.views)
@@ -925,9 +975,8 @@ local function renderGame(v)
     f.action:Show(); f.action:SetLabel("Back to history"); f.action:SetEnabledState(true)
     f.action:SetScript("OnClick", function() Window.show("history") end)
   elseif v.state == "closed" then
-    f.text:SetText("This game is closed. The board stays readable.")
-    f.action:Show(); f.action:SetLabel("Back to games"); f.action:SetEnabledState(true)
-    f.action:SetScript("OnClick", function() app.leaveToLobby(); Window.show("lobby") end)
+    f.text:SetText("This game is closed. It stays readable under History.")
+    f.action:Hide()
   elseif v.canCall then
     f.text:SetText(v.isHost and "You are calling. Click a square to call it; click a called square to undo. Right-click a name to let them call."
                               or "You can call. Click a square to call it; click a called square to undo.")
@@ -938,13 +987,11 @@ local function renderGame(v)
         else f.confirmClose = true; f.action:SetLabel("Really close?"); C_Timer.After(4, function() f.confirmClose = nil; if f.action:IsShown() then f.action:SetLabel("Close game") end end) end
       end)
     else
-      f.action:Show(); f.action:SetLabel("Games"); f.action:SetEnabledState(true)
-      f.action:SetScript("OnClick", function() Window.show("lobby") end)
+      f.action:Hide()
     end
   else
     f.text:SetText(v.ownerShort .. " is calling.")
-    f.action:Show(); f.action:SetLabel("Games"); f.action:SetEnabledState(true)
-    f.action:SetScript("OnClick", function() Window.show("lobby") end)
+    f.action:Hide()
   end
 end
 
@@ -969,8 +1016,7 @@ local function renderHistory()
   end)
   if #rows == 0 then h.empty:Show() else h.empty:Hide() end
   win.footer.text:SetText("Finished games stay readable here, newest first.")
-  win.footer.action:Show(); win.footer.action:SetLabel("Games"); win.footer.action:SetEnabledState(true)
-  win.footer.action:SetScript("OnClick", function() Window.show("lobby") end)
+  win.footer.action:Hide()
 end
 
 local function renderOptions()
@@ -978,8 +1024,7 @@ local function renderOptions()
   win.header.status:SetText("")
   win.views.options:Refresh()
   win.footer.text:SetText("")
-  win.footer.action:Show(); win.footer.action:SetLabel("Games"); win.footer.action:SetEnabledState(true)
-  win.footer.action:SetScript("OnClick", function() Window.show("lobby") end)
+  win.footer.action:Hide()
 end
 
 function Window.refresh()
@@ -996,6 +1041,14 @@ function Window.refresh()
   win.view = view
   hideAll(win.views)
   win.views[view]:Show()
+  -- tabs: the Game tab exists only while in a live game; a history entry
+  -- shown as a board belongs to the History tab
+  local live = app.view()
+  win.tabs:Layout(live ~= nil)
+  local active = view
+  if view == "setup" then active = "lobby" end
+  if view == "game" and win.historyGid then active = "history" end
+  win.tabs:SetActive(active)
   if view == "lobby" then renderLobby()
   elseif view == "setup" then renderSetup()
   elseif view == "history" then renderHistory()
