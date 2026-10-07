@@ -27,6 +27,7 @@ ns.Mirror = Mirror
 Mirror.CARD_TTL = 90         -- seconds without a heartbeat before "host away"
 Mirror.GAP_WAIT = 3          -- seconds to wait for an out-of-order delta before asking
 Mirror.SYNC_COOLDOWN = 10    -- seconds between sync requests per game
+Mirror.JOIN_WINDOW = 30      -- a WE is honoured only this long after our own JN
 Mirror.HELLO_GID = "0"
 
 local SEQUENCED = { JD = true, CL = true, UN = true, GR = true, TI = true, CX = true, TR = true }
@@ -36,6 +37,7 @@ function Mirror.new(deps)
   self.deps = deps
   self.cards = {}        -- gid -> card
   self.games = {}        -- gid -> game
+  self.joining = {}      -- gid -> when we asked to join
   self.saidNewer = false
   -- Marks our own HI so its echo is recognisable. Drawn from the unit float:
   -- the client's math.random(m, n) misbehaves for ranges this large.
@@ -90,6 +92,7 @@ function Mirror:join(gid)
   local card = self.cards[gid]
   if not card then return nil, "no such game" end
   if card.state ~= "open" then return nil, "that game is closed" end
+  self.joining[gid] = self.deps.now()
   self:emit("JN", gid, { ver = Codec.PROTOCOL }, "WHISPER", card.host)
   return true
 end
@@ -236,8 +239,12 @@ function Mirror:handle(msg, sender)
   end
   local g = self.games[gid]
   if t == "WE" then
+    -- A welcome is the answer to our own join request: anything else is
+    -- someone trying to put a board in front of a player who never asked.
+    local asked = self.joining[gid]
+    if not asked or self.deps.now() - asked > Mirror.JOIN_WINDOW then return end
     local card = self.cards[gid]
-    if g and sender ~= g.owner and f.gen <= g.gen then return end
+    if g and sender ~= g.owner then return end
     if not g and (not card or card.host ~= sender) then return end
     g = g or newGame(gid, sender)
     self.games[gid] = g

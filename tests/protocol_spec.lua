@@ -352,6 +352,30 @@ describe("resilience", function()
   end)
 end)
 
+describe("unsolicited welcomes", function()
+  it("ignores a WE the player never asked for, and a late one", function()
+    local hub, host, _, names = guildNight(3)
+    local victim = hub.clients[names[3]]
+    local gid = host.record.gid
+    -- the real host whispers a WE without any JN: still refused
+    local board = Logic.dealBoard(hub.rng)
+    hub.clients[names[1]].net:send(Codec.encode("WE", gid, { seq = 1, board = board, canCall = false, createdAt = hub:now(),
+      bingoAt = nil, itemsHash = host.record.itemsHash, gen = 1 }), "WHISPER", names[3])
+    hub:flush()
+    assert.is_nil(victim.mirror.games[gid])
+    -- a join followed by a WE inside the window is accepted
+    victim.mirror:join(gid); hub:flush()
+    assert.is_truthy(victim.mirror.games[gid])
+    -- a second player asks, but the answer comes too late
+    local late = hub.clients[names[2]]
+    late.mirror.joining[gid] = hub:now() - Mirror.JOIN_WINDOW - 1
+    hub.clients[names[1]].net:send(Codec.encode("WE", gid, { seq = 1, board = board, canCall = false, createdAt = hub:now(),
+      bingoAt = nil, itemsHash = host.record.itemsHash, gen = 1 }), "WHISPER", names[2])
+    hub:flush()
+    assert.is_nil(late.mirror.games[gid])
+  end)
+end)
+
 describe("game events", function()
   it("tells both the host and the followers about calls, undos and joins", function()
     local hub, host, owner, names = guildNight(2)
