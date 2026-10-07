@@ -59,6 +59,7 @@ The repo root is the addon folder; `DEABingo.toc` lives here.
 
     brew install luajit luarocks
     luarocks --lua-version=5.1 --lua-dir=/opt/homebrew/opt/luajit install busted
+    git config core.hooksPath .githooks   # secret scan before each commit (needs gitleaks)
     scripts/fetch-libs.sh        # LibStub, CallbackHandler, AceComm, LibDataBroker, LibDBIcon
     scripts/test.sh              # busted under LuaJIT, then the headless client smoke
     scripts/link-beta.sh         # symlinks the repo into the beta client's AddOns
@@ -79,7 +80,7 @@ Details are in `PLAN.md`.
 
 ### Releasing
 
-Add a section to the top of `CHANGELOG.md`, then push a tag like `v0.1.1`. The release
+Add a `## vX.Y.Z (date)` section to the top of `CHANGELOG.md`, then push the matching tag. The release
 workflow runs the BigWigs packager, which pulls the libraries from `.pkgmeta`, builds the zip
 and uploads it to CurseForge (the project id is in the TOC; `CF_API_KEY` is a repository
 secret; `WAGO_API_TOKEN` does the same for Wago). A separate step then creates the GitHub

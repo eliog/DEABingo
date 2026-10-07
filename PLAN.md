@@ -332,7 +332,7 @@ in Actions secrets; `## X-Curse-Project-ID` and `## X-Wago-ID` in the TOC.
 1. ~~Folder and project name~~ **Decided 2026-10-07: "DEA Bingo"**, folder `DEABingo`, prefix `DEABINGO`, SV `DEABingoDB`.
 2. ~~Guild-only default~~ **Decided 2026-10-07: audience defaults to Guild** (GUILD channel; guild members outside the raid can join; pugs excluded).
    Raid mode remains available for nights with cross-guild guests.
-3. ~~Celebration sound~~ **Decided 2026-10-07: ship a celebration OGG.** Needs an original or CC0 clip; its licence ships beside it.
+3. ~~Celebration sound~~ **Decided 2026-10-07: ship a celebration OGG.** Pending a clip (original or CC0); Blizzard's ready-check kit plays until then.
 
 ## 11. Milestones
 
@@ -340,8 +340,8 @@ Launch is 4 Nov 2026; the beta client is the test bed until then.
 
 | Milestone | Scope | Done when |
 |---|---|---|
-| **M0 Foundations** (week 1) — *done 2026-10-07: 22 tests green, loads on beta build 70245, `C_EncodingUtil` present* | Repo, TOC, `.pkgmeta`, symlink, `Core/Logic.lua` port, busted harness, TS fixtures ported, `cleanText` port, `escape()` | `busted` green; addon loads on the beta client with `/dea` printing its version |
-| **M1 Protocol** (weeks 1–2) — *done 2026-10-07: 50 tests green; verified between two beta clients (join, items, call, grant, caller request) on realmless two-word names* | Codec, Net, Host, Mirror, Store; HELLO/GAME/JOIN/WELCOME/JOINED/ITEMS/CALL/UNDO/GRANT/CLOSE/SYNC/TRANSFER; rate limits; `/dea debug`, `/dea solo` | Loopback tests cover join wave, undo-revokes-bingo, late-join bingo, host reload, seq gap, forged and malformed input; two real clients sync on the beta |
+| **M0 Foundations** (week 1) — *done 2026-10-07: tests green, loads on beta build 70245, `C_EncodingUtil` present* | Repo, TOC, `.pkgmeta`, symlink, `Core/Logic.lua` port, busted harness, TS fixtures ported, `cleanText` port, `escape()` | `busted` green; addon loads on the beta client with `/dea` printing its version |
+| **M1 Protocol** (weeks 1–2) — *done 2026-10-07: tests green; verified between two beta clients (join, items, call, grant, caller request) on realmless two-word names* | Codec, Net, Host, Mirror, Store; HELLO/GAME/JOIN/WELCOME/JOINED/ITEMS/CALL/UNDO/GRANT/CLOSE/SYNC/TRANSFER; rate limits; `/dea debug`, `/dea solo` | Loopback tests cover join wave, undo-revokes-bingo, late-join bingo, host reload, seq gap, forged and malformed input; two real clients sync on the beta |
 | **M2 Board and windows** (weeks 2–3) — *done 2026-10-07: verified in the beta (board, bingo, resize, Escape, combat dim); caller panel, confirmation sheet, sounds, paste-a-list, history and options added* | Theme, Cell, Board with fitted font, Window with standings and call log, Chip with combat rules, Caller panel, Lobby, Setup (copy-last, paste-a-list), History | A full game can be played by a 5-person group in the beta with no slash commands |
 | **M3 Juice and polish** (week 3–4) | Alpha sheet, fonts with locale fallback, tween driver, call/undo/bingo animations, celebration OGG, toasts, minimap button, chat invite link, bingo and results lines, options | Visual review against `design/BoardPlayer.dc.html`; frame-time budget met in a 40-person raid |
 | **M4 Release** (launch week) — *v0.1.0 shipped 2026-10-07: GitHub release + CurseForge project 1732315 via the packager; README, CI, changelog in place; first guild night pending* | README, LICENSE, OFL files, CHANGELOG, GitHub Actions packager, CurseForge and Wago projects, first guild night | v0.1 installable from CurseForge; one full guild raid played |

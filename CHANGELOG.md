@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.1.0 (2026-10-07)
+## Unreleased
+
+Fixes from the 2026-10-07 review (GitHub issues #1 to #35).
+
+- Ownership and identity: no takeover by a higher generation, no identity replay, welcomes only after a join request.
+- Capacity: paged snapshots, a 120-player cap, items cached from the broadcast, retitle keeps items, rate buckets per role.
+- UI: real diagonals and diamond marks, board rows that grow instead of clipping, tabs that always leave history, a larger minimum size, toasts and chip clear of raid warnings, combat scrim, paste card fixes, reduce-motion option, clear history.
+- Protocol: transfer wired with a confirmation, sync back-off, closed games reach lobbies, audience checks, sanitised wire times, website rules on closed games.
+- Release: single release path with top-section notes, pinned libraries and actions, licence texts shipped.
+
+## v0.1.0 (2026-10-07)
 
 First playable build for the World of Warcraft: Forever beta.
 

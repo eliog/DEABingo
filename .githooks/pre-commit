@@ -1,5 +1,5 @@
 #!/bin/sh
-# Enable with: npm run hooks
+# Enable with: git config core.hooksPath .githooks
 #
 # Catches a secret before it reaches history. This matters more than the CI
 # job: once a secret is committed, removing it in a later commit does not
@@ -10,7 +10,7 @@ if command -v gitleaks >/dev/null 2>&1; then
     echo
     echo "gitleaks found a secret in the staged changes. Nothing was committed."
     echo "Remove it and re-stage. If it is a false positive, add a narrow"
-    echo "allowlist rule to .gitleaks.toml rather than skipping the hook."
+    echo "allowlist rule in a .gitleaks.toml at the repo root rather than skipping the hook."
     exit 1
   }
 else

@@ -65,7 +65,6 @@ local function newToast()
     local cx = self:GetCenter()
     local top = self:GetTop()
     if cx and top then
-      local scale = anchor:GetEffectiveScale()
       local pos = { point = "TOP", relPoint = "BOTTOMLEFT", x = cx, y = top + (index - 1) * (Toast.HEIGHT + Toast.GAP) }
       anchor:ClearAllPoints()
       anchor:SetPoint("TOP", UIParent, "BOTTOMLEFT", pos.x, pos.y)

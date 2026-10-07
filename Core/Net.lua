@@ -45,7 +45,7 @@ function Net.new(deps)
   self.hosts = {}          -- gid -> Host
   self.mirror = nil
   self.buckets = {}        -- sender -> { tokens, at }
-  self.stats = { sent = 0, received = 0, dropped = 0 }
+  self.stats = { sent = 0, received = 0, dropped = 0, errors = 0 }
   return self
 end
 
@@ -151,6 +151,7 @@ function Net:onMessage(payload, channel, sender)
   local okay, err = pcall(self.dispatch, self, payload, channel, sender)
   if not okay then
     self.stats.dropped = self.stats.dropped + 1
+    self.stats.errors = self.stats.errors + 1
     self:log("handler error: " .. tostring(err))
   end
 end

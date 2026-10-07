@@ -28,11 +28,21 @@ function Store.new(db)
   return self
 end
 
+-- Schema migrations: migrations[n] takes a database at version n to n + 1.
+-- Every file is at 1 today; the hook exists so version 2 has somewhere to go.
+Store.migrations = {}
+
 function Store.shape(db)
   if type(db) ~= "table" then db = {} end
   if type(db.schema) ~= "number" then db.schema = 0 end
   for _, key in ipairs({ "options", "itemSets", "history", "hosted", "joined", "seenGames" }) do
     if type(db[key]) ~= "table" then db[key] = {} end
+  end
+  local from = db.schema
+  while from < Store.SCHEMA do
+    local migrate = Store.migrations[from]
+    if migrate then migrate(db) end
+    from = from + 1
   end
   db.schema = Store.SCHEMA
   return db

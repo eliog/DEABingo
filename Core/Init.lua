@@ -992,7 +992,7 @@ end
 
 commands.net = function()
   local s = App.net.stats
-  print_(("sent %d, received %d, dropped %d"):format(s.sent, s.received, s.dropped))
+  print_(("sent %d, received %d, dropped %d, handler errors %d"):format(s.sent, s.received, s.dropped, s.errors or 0))
 end
 
 commands.sound = function()

@@ -102,6 +102,22 @@ describe("saved records", function()
     assert.is_nil(s.db.itemSets.h01)
   end)
 
+  it("runs schema migrations from the stored version up to the current one", function()
+    local ran = {}
+    Store.migrations[0] = function(db) ran[#ran + 1] = 0; db.migratedFrom0 = true end
+    local s = Store.new({ schema = 0 })
+    Store.migrations[0] = nil
+    assert.are.same({ 0 }, ran)
+    assert.is_true(s.db.migratedFrom0)
+    assert.are.equal(Store.SCHEMA, s.db.schema)
+    -- a database already current runs nothing
+    ran = {}
+    Store.migrations[0] = function() ran[#ran + 1] = 0 end
+    Store.new({ schema = Store.SCHEMA })
+    Store.migrations[0] = nil
+    assert.are.same({}, ran)
+  end)
+
   it("validates a saved window position before it reaches SetPoint", function()
     assert.is_true(Store.isPosition({ point = "CENTER", relPoint = "CENTER", x = 10, y = -20, w = 900, h = 600 }))
     assert.is_false(Store.isPosition({ point = "SOMEWHERE", x = 0, y = 0 }))

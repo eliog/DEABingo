@@ -6,7 +6,9 @@
 set -e
 cd "$(dirname "$0")/.."
 eval "$(luarocks --lua-version=5.1 path)"
-BUSTED="$(ls "$HOME"/.luarocks/lib/luarocks/rocks-5.1/busted/*/bin/busted 2>/dev/null | head -1)"
+# busted's launcher script, run under luajit explicitly (its shebang may pick another Lua)
+BUSTED="$(luarocks --lua-version=5.1 which busted 2>/dev/null | head -1)"
+[ -f "$BUSTED" ] || BUSTED="$(ls "$HOME"/.luarocks/lib/luarocks/rocks-5.1/busted/*/bin/busted 2>/dev/null | head -1)"
 if [ -z "$BUSTED" ]; then
   echo "busted is not installed; see the comment at the top of $0" >&2
   exit 1
