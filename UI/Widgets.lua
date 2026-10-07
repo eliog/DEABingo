@@ -257,14 +257,20 @@ function W.draggable(frame, save)
   end)
 end
 
+-- A saved position is untrusted input: validated, and applied under pcall,
+-- so a damaged options table can never stop the UI from loading.
 function W.restorePosition(frame, pos, default)
   frame:ClearAllPoints()
-  if pos and pos.point then
-    frame:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x or 0, pos.y or 0)
-    if pos.w and pos.h and frame:IsResizable() then frame:SetSize(pos.w, pos.h) end
-  else
-    frame:SetPoint(default.point or "CENTER", UIParent, default.point or "CENTER", default.x or 0, default.y or 0)
+  local Store = ns.Store
+  if pos and Store and Store.isPosition(pos) then
+    local okay = pcall(function()
+      frame:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x, pos.y)
+      if pos.w and pos.h and frame:IsResizable() then frame:SetSize(pos.w, pos.h) end
+    end)
+    if okay then return end
+    frame:ClearAllPoints()
   end
+  frame:SetPoint(default.point or "CENTER", UIParent, default.point or "CENTER", default.x or 0, default.y or 0)
 end
 
 -- Hover tooltip with wrapped text.
