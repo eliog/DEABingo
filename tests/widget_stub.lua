@@ -31,6 +31,8 @@ local function newWidget(kind, name)
       elseif key == "Show" then return function(s) s.__shown = true; if s.__scripts and s.__scripts.OnShow then s.__scripts.OnShow(s) end end
       elseif key == "Hide" then return function(s) s.__shown = false end
       elseif key == "HasFocus" then return function() return false end
+      elseif key == "GetVerticalScroll" then return function(s) return s.__scroll or 0 end
+      elseif key == "SetVerticalScroll" then return function(s, v) s.__scroll = v end
       elseif key == "IsResizable" then return function() return true end
       elseif key == "GetEffectiveScale" then return function() return 1 end
       elseif key == "SetScript" then return function(s, ev, fn) s.__scripts = s.__scripts or {}; s.__scripts[ev] = fn end

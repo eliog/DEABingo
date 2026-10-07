@@ -12,7 +12,6 @@ if [ -z "$BUSTED" ]; then
   exit 1
 fi
 luajit "$BUSTED" "$@"
-status=$?
-[ $status -ne 0 ] && exit $status
 # Then the headless client smoke, which executes the UI code against a fake widget API.
-luajit tests/client_smoke.lua | tail -1
+out="$(luajit tests/client_smoke.lua 2>&1)" || { echo "$out" | tail -8; echo "client smoke FAILED"; exit 1; }
+echo "$out" | tail -1

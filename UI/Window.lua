@@ -45,7 +45,7 @@ local function scrollList(parent, rowHeight, makeRow)
   scroll:EnableMouseWheel(true)
   scroll:SetScript("OnMouseWheel", function(self, delta)
     local max = math.max(0, self.child:GetHeight() - self:GetHeight())
-    local target = math.min(max, math.max(0, self:GetVerticalScroll() - delta * rowHeight * 3))
+    local target = math.min(max, math.max(0, (self:GetVerticalScroll() or 0) - delta * rowHeight * 3))
     self:SetVerticalScroll(target)
     self:UpdateThumb()
   end)
@@ -54,7 +54,7 @@ local function scrollList(parent, rowHeight, makeRow)
     if total <= visible + 1 then self.thumb:Hide(); return end
     local trackH = visible - 4
     local thumbH = math.max(18, trackH * visible / total)
-    local offset = (self:GetVerticalScroll() / (total - visible)) * (trackH - thumbH)
+    local offset = ((self:GetVerticalScroll() or 0) / (total - visible)) * (trackH - thumbH)
     self.thumb:ClearAllPoints()
     self.thumb:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -(2 + offset))
     self.thumb:SetHeight(thumbH)
@@ -79,7 +79,7 @@ local function scrollList(parent, rowHeight, makeRow)
     for i = #items + 1, #self.rows do self.rows[i]:Hide() end
     child:SetHeight(math.max(1, #items * rowHeight))
     local max = math.max(0, child:GetHeight() - self:GetHeight())
-    if self:GetVerticalScroll() > max then self:SetVerticalScroll(max) end
+    if (self:GetVerticalScroll() or 0) > max then self:SetVerticalScroll(max) end
     self:UpdateThumb()
   end
   return scroll
