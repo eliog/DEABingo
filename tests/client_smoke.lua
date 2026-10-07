@@ -125,12 +125,6 @@ tickAll(1)
 run(alpha, "standings")
 run(beta, "undo 5")
 tickAll(1)
-run(alpha, "items")
-run(alpha, "close")
-tickAll(1)
-run(beta, "status")
-run(alpha, "net")
-
 -- UI exercise on both clients: window views, board, chip, setup validation, combat dim
 for _, c in ipairs(clients) do
   current = c.name
@@ -148,9 +142,25 @@ for _, c in ipairs(clients) do
   local cell = Window.frame().views.game.board.cells[1]
   cell.__scripts.OnEnter(cell); cell.__scripts.OnLeave(cell); cell.__scripts.OnClick(cell, "LeftButton")
   Window.setCombat(true); Window.setCombat(false)
+  -- caller panel: switch mode, filter, click a row (calls or undoes through App)
+  local game = Window.frame().views.game
+  if v.canCall then
+    game.railMode = "call"; Window.refresh()
+    game.log.filter:SetText("wipe"); Window.refresh()
+    local row = game.log.caller.rows[1]
+    assert(row and row.idx ~= nil, "caller row missing")
+    row.__scripts.OnClick(row); pump()
+    game.log.filter:SetText(""); game.railMode = "log"; Window.refresh()
+  end
   c.ns.Theme.apply("light"); c.ns.Theme.apply("dark")
   pump()
 end
+run(alpha, "items")
+run(alpha, "close")
+tickAll(1)
+run(beta, "status")
+run(alpha, "net")
+
 -- the footer's "Start a game" and setup create path
 current = alpha.name
 alpha.ns.Window.show("setup")

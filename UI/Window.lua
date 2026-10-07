@@ -209,6 +209,59 @@ local function buildGame(f)
   g.log.empty = W.text(g.log, W.fonts().body, "inkFaint", "CENTER")
   g.log.empty:SetPoint("CENTER", 0, -6)
   g.log.empty:SetText("Nothing called yet")
+
+  -- Mode switch, callers only: LOG shows what was called, CALL is the
+  -- alphabetical list the caller works from. Alphabetical beats board
+  -- order because the caller is hunting a phrase they just heard.
+  g.railMode = "log"
+  g.log.modeLog = W.text(g.log, W.fonts().eyebrow, "ink")
+  g.log.modeCall = W.text(g.log, W.fonts().eyebrow, "inkFaint")
+  g.log.modeLog:SetText("LOG"); g.log.modeCall:SetText("CALL A SQUARE")
+  g.log.modeLog:SetPoint("TOPLEFT", 10, -9)
+  g.log.modeCall:SetPoint("LEFT", g.log.modeLog, "RIGHT", 14, 0)
+  g.log.modeLog:Hide(); g.log.modeCall:Hide()
+  local function modeButton(fs, mode)
+    local b = CreateFrame("Button", nil, g.log)
+    b:SetAllPoints(fs)
+    b:SetScript("OnClick", function() g.railMode = mode; Window.refresh() end)
+    return b
+  end
+  g.log.modeLogBtn = modeButton(g.log.modeLog, "log")
+  g.log.modeCallBtn = modeButton(g.log.modeCall, "call")
+
+  g.log.filter = W.editBox(g.log, 100, W.fonts().small)
+  g.log.filter:SetPoint("TOPLEFT", 8, -28); g.log.filter:SetPoint("TOPRIGHT", -8, -28)
+  g.log.filter:SetHeight(22)
+  g.log.filter:SetScript("OnTextChanged", function() Window.refresh() end)
+  g.log.filter:Hide()
+  g.log.filterHint = W.text(g.log, W.fonts().small, "inkFaint")
+  g.log.filterHint:SetPoint("LEFT", g.log.filter, "LEFT", 8, 0)
+  g.log.filterHint:SetText("Type to filter")
+  g.log.filterHint:Hide()
+
+  g.recentCall = {}
+  g.log.caller = scrollList(g.log, 22, function(parent)
+    local row = CreateFrame("Button", nil, parent)
+    row.hover = W.rect(row, "raised", "BACKGROUND"); row.hover:SetAllPoints(); row.hover:Hide()
+    row.mark = row:CreateTexture(nil, "ARTWORK"); row.mark:SetSize(6, 6); row.mark:SetPoint("LEFT", 4, 0); row.mark:SetRotation(math.rad(45))
+    Theme.register(row.mark, "fel", "bg"); row.mark:Hide()
+    row.text = W.text(row, W.fonts().body, "ink"); row.text:SetPoint("LEFT", 16, 0); row.text:SetPoint("RIGHT", -46, 0)
+    row.text:SetWordWrap(false)
+    row.time = W.text(row, W.fonts().small, "fel", "RIGHT"); row.time:SetPoint("RIGHT", -2, 0); row.time:SetWidth(42)
+    row:SetScript("OnEnter", function(self) self.hover:Show() end)
+    row:SetScript("OnLeave", function(self) self.hover:Hide() end)
+    row:SetScript("OnClick", function(self)
+      if self.idx == nil then return end
+      local now = GetTime()
+      if g.recentCall[self.idx] and now - g.recentCall[self.idx] < 1.5 then return end
+      g.recentCall[self.idx] = now
+      app.call(self.idx, self.called)
+    end)
+    return row
+  end)
+  g.log.caller:SetPoint("TOPLEFT", 8, -54)
+  g.log.caller:SetPoint("BOTTOMRIGHT", -6, 8)
+  g.log.caller:Hide()
   return g
 end
 
@@ -517,11 +570,45 @@ local function renderGame(v)
   end)
 
   g.log.count:SetText(v.callCount == 0 and "" or tostring(v.callCount))
-  g.log.list:Fill(v.calls, function(row, c)
-    row.time:SetText(W.clock(c.t))
-    row.text:SetText(Logic.escape(c.text or ("#" .. (c.idx + 1))))
-  end)
-  if v.callCount == 0 then g.log.empty:Show() else g.log.empty:Hide() end
+  local canCall = v.canCall and v.state == "open" and v.items ~= nil
+  if not canCall then g.railMode = "log" end
+  if canCall then
+    g.log.head:Hide(); g.log.modeLog:Show(); g.log.modeCall:Show()
+    Theme.set(g.log.modeLog, g.railMode == "log" and "ink" or "inkFaint")
+    Theme.set(g.log.modeCall, g.railMode == "call" and "ink" or "inkFaint")
+  else
+    g.log.head:Show(); g.log.modeLog:Hide(); g.log.modeCall:Hide()
+  end
+  if g.railMode == "call" then
+    g.log.list:Hide(); g.log.empty:Hide()
+    g.log.filter:Show(); g.log.caller:Show()
+    local needle = (g.log.filter:GetText() or ""):lower()
+    if needle == "" then g.log.filterHint:Show() else g.log.filterHint:Hide() end
+    local rows = {}
+    for i, text in ipairs(v.items) do
+      if needle == "" or text:lower():find(needle, 1, true) then
+        rows[#rows + 1] = { idx = i - 1, text = text, called = v.called[i - 1] == true }
+      end
+    end
+    table.sort(rows, function(a, b) return a.text:lower() < b.text:lower() end)
+    local when = {}
+    for _, c in ipairs(v.calls) do when[c.idx] = c.t end
+    g.log.caller:Fill(rows, function(row, r)
+      row.idx, row.called = r.idx, r.called
+      row.text:SetText(Logic.escape(r.text))
+      Theme.set(row.text, r.called and "fel" or "ink")
+      row.time:SetText(r.called and W.clock(when[r.idx]) or "")
+      if r.called then row.mark:Show() else row.mark:Hide() end
+    end)
+  else
+    g.log.filter:Hide(); g.log.filterHint:Hide(); g.log.caller:Hide()
+    g.log.list:Show()
+    g.log.list:Fill(v.calls, function(row, c)
+      row.time:SetText(W.clock(c.t))
+      row.text:SetText(Logic.escape(c.text or ("#" .. (c.idx + 1))))
+    end)
+    if v.callCount == 0 then g.log.empty:Show() else g.log.empty:Hide() end
+  end
 
   local f = win.footer
   if v.state == "closed" then
@@ -529,8 +616,8 @@ local function renderGame(v)
     f.action:Show(); f.action:SetLabel("Back to games"); f.action:SetEnabledState(true)
     f.action:SetScript("OnClick", function() app.leaveToLobby(); Window.show("lobby") end)
   elseif v.canCall then
-    f.text:SetText(v.isHost and "You are calling. Ctrl-click a square to call it, Ctrl-click again to undo. Right-click a name to let them call."
-                              or "You can call. Ctrl-click a square to call it, Ctrl-click again to undo.")
+    f.text:SetText(v.isHost and "You are calling: use Call a square, or Ctrl-click the board. Right-click a name to let them call."
+                              or "You can call: use Call a square, or Ctrl-click the board. Click a lit row to undo.")
     if v.isHost then
       f.action:Show(); f.action:SetLabel("Close game"); f.action:SetEnabledState(true)
       f.action:SetScript("OnClick", function()
