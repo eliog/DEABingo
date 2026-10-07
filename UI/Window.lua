@@ -1020,7 +1020,18 @@ local function renderGame(v)
       f.action:Show(); f.action:SetLabel("Close game"); f.action:SetEnabledState(true)
       f.action:SetScript("OnClick", function()
         if f.confirmClose then app.close(); f.confirmClose = nil
-        else f.confirmClose = true; f.action:SetLabel("Really close?"); C_Timer.After(4, function() f.confirmClose = nil; if f.action:IsShown() then f.action:SetLabel("Close game") end end) end
+        else
+          f.confirmClose = true
+          f.action:SetLabel("Really close?")
+          C_Timer.After(4, function()
+            f.confirmClose = nil
+            -- only if the footer still belongs to this live, hosted game
+            local cur = win.currentView
+            if win.view == "game" and not win.historyGid and cur and cur.isHost and cur.state == "open" and f.action:IsShown() then
+              f.action:SetLabel("Close game")
+            end
+          end)
+        end
       end)
     else
       f.action:Hide()
@@ -1065,6 +1076,7 @@ end
 
 function Window.refresh()
   if not win or not win:IsShown() then return end
+  win.footer.confirmClose = nil   -- a half-finished "Really close?" never survives a re-render
   local v
   if win.historyGid then
     v = app.historyView(win.historyGid)

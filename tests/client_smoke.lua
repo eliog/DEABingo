@@ -198,6 +198,24 @@ for _, c in ipairs(clients) do
   _G.UnitAffectingCombat = function() return false end
   App.flushToasts()
   -- history and options views, and the paste parser
+  -- #22: start closing, switch tabs, let the timer fire: the lobby button keeps its label
+  do
+    local vcur = App.currentView()
+    if vcur and vcur.isHost and vcur.state == "open" then
+      Window.show("game"); Window.refresh()
+      local act = Window.frame().footer.action
+      local fired
+      local realAfter = C_Timer.After
+      C_Timer.After = function(_, fn) fired = fn end
+      act.__scripts.OnClick(act)
+      assert(act.label.__text == "Really close?", "confirm label missing")
+      C_Timer.After = realAfter
+      Window.show("lobby"); Window.refresh()
+      assert(Window.frame().footer.confirmClose == nil, "confirmClose survived a view change")
+      fired()
+      assert(act.label.__text == "Start a game", "timer relabelled the lobby button: " .. tostring(act.label.__text))
+    end
+  end
   Window.show("history"); Window.refresh()
   -- #19: a history board open, then the GAME tab: the live game shows, not the history one
   do
