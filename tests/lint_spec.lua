@@ -45,3 +45,33 @@ describe("release notes", function()
     assert.is_nil(out:find("Older", 1, true))
   end)
 end)
+
+describe("licences", function()
+  it("ships a licence text for every library the packager embeds", function()
+    local covered = {
+      ["Libs/LibStub"] = "Licenses/Ace3.txt",
+      ["Libs/CallbackHandler-1.0"] = "Licenses/Ace3.txt",
+      ["Libs/AceComm-3.0"] = "Licenses/Ace3.txt",
+      ["Libs/LibDataBroker-1.1"] = "Licenses/LibDataBroker-1.1.txt",
+      ["Libs/LibDBIcon-1.0"] = "Licenses/LibDBIcon-1.0.txt",
+    }
+    local pkg = read(".pkgmeta")
+    local inExternals = false
+    for line in (pkg .. "\n"):gmatch("(.-)\n") do
+      if line:match("^externals:") then inExternals = true
+      elseif line:match("^%S") then inExternals = false
+      elseif inExternals then
+        local path = line:match("^%s+(Libs/[^:]+):")
+        if path then
+          local text = covered[path]
+          assert.is_truthy(text, path .. " has no licence text listed in the spec")
+          local f = io.open(text)
+          assert.is_truthy(f, text .. " is missing")
+          f:close()
+        end
+      end
+    end
+    -- and the folder is not excluded from the package
+    assert.is_nil(pkg:find("\n%s*%-%s*Licenses"), "Licenses/ is ignored by .pkgmeta")
+  end)
+end)

@@ -20,5 +20,5 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Embedded libraries in Libs/ and fonts in Media/Fonts/ carry their own licences,
-kept beside them.
+The embedded libraries, the fonts and the guild crest are not covered by this
+grant; their terms are collected in Licenses/README.md.

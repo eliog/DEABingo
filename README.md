@@ -71,6 +71,8 @@ release with the zip, using the top changelog section as the notes.
 
 ## Licence
 
-MIT. Ace3 libraries are BSD-licensed; LibDataBroker and LibDBIcon carry their own
-permissive licences; the fonts are under the SIL Open Font License, with the licence text
-beside them. The DEA crest belongs to the guild.
+MIT, for the addon's own code. The embedded libraries, the fonts and the crest each have their
+own terms, collected in `Licenses/README.md` and shipped with every release: Ace3's
+LibStub, CallbackHandler and AceComm under Ace3's BSD-style licence, LibDBIcon under the same
+style, LibDataBroker as its author distributes it, Cinzel and Alegreya Sans under the SIL Open
+Font License. The DEA crest is the guild's mark and is not under the MIT grant.

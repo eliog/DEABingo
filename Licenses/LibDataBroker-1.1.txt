@@ -1,0 +1,10 @@
+LibDataBroker-1.1 by tekkub
+https://github.com/tekkub/libdatabroker-1-1
+https://www.curseforge.com/wow/addons/libdatabroker-1-1
+
+LibDataBroker is a shared library written to be embedded in World of Warcraft
+addons, and is embedded unmodified here as its documentation describes. The
+repository carries no licence file; its CurseForge project page shows the
+site's default "All Rights Reserved". The library's author has distributed
+it for exactly this use since 2008 and it ships inside a large share of all
+published addons. Copyright remains with the author.
