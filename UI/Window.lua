@@ -134,13 +134,17 @@ local function buildGame(f)
   g.board = Board.new(g.boardHolder)
   g.board.frame:SetPoint("TOPLEFT")
   g.board.frame:SetPoint("BOTTOMRIGHT")
+  -- Plain click opens the sheet with the full phrase and, for callers, the
+  -- Call or Undo button, as on the website. Ctrl-click skips the question.
   g.board.onCellClick = function(idx, button, ctrl)
     if idx == nil then return end
     local v = win.currentView
-    if not v or not v.canCall or v.state ~= "open" then return end
-    if ctrl or button == "RightButton" then
+    if not v then return end
+    if ctrl and v.canCall and v.state == "open" then
       app.call(idx, v.called[idx] == true)
+      return
     end
+    Window.sheet(idx)
   end
 
   g.rail = CreateFrame("Frame", nil, g)
@@ -469,9 +473,65 @@ function Window.init(callbacks)
     if win.views.setup:IsShown() then win.views.setup:LayoutGrid() end
   end)
 
+  -- The sheet: a modal card over the window for one square.
+  local sh = CreateFrame("Button", nil, win)
+  sh:SetAllPoints(win)
+  sh:SetFrameLevel((win:GetFrameLevel() or 0) + 20)
+  sh.scrim = W.rect(sh, "scrim"); sh.scrim:SetAllPoints()
+  sh:SetScript("OnClick", function() sh:Hide() end)
+  sh.card = W.panel(sh, "raised")
+  sh.card:SetSize(420, 220)
+  sh.card:SetPoint("CENTER", 0, 20)
+  sh.card:EnableMouse(true)
+  sh.card.eyebrow = W.text(sh.card, W.fonts().eyebrow, "inkFaint")
+  sh.card.eyebrow:SetPoint("TOPLEFT", 18, -16)
+  sh.card.phrase = W.text(sh.card, W.fonts().phrase, "ink", "CENTER")
+  sh.card.phrase:SetPoint("TOPLEFT", 18, -40); sh.card.phrase:SetPoint("TOPRIGHT", -18, -40)
+  sh.card.phrase:SetHeight(90)
+  sh.card.phrase:SetJustifyV("MIDDLE")
+  sh.card.phrase:SetWordWrap(true)
+  sh.card.note = W.text(sh.card, W.fonts().small, "inkDim", "CENTER")
+  sh.card.note:SetPoint("BOTTOMLEFT", 18, 56); sh.card.note:SetPoint("BOTTOMRIGHT", -18, 56)
+  sh.card.confirm = W.button(sh.card, "Call this square", function()
+    if sh.idx ~= nil then app.call(sh.idx, sh.undo) end
+    sh:Hide()
+  end, { width = 180, height = 30, primary = true })
+  sh.card.confirm:SetPoint("BOTTOMRIGHT", -16, 14)
+  sh.card.cancel = W.button(sh.card, "Cancel", function() sh:Hide() end, { width = 100, height = 30 })
+  sh.card.cancel:SetPoint("RIGHT", sh.card.confirm, "LEFT", -8, 0)
+  sh:Hide()
+  win.sheetFrame = sh
+
   win:SetScript("OnShow", function() Window.refresh() end)
+  win:SetScript("OnHide", function() sh:Hide() end)
   win:Hide()
   return win
+end
+
+-- Open the sheet for item idx (0-based) in the current game.
+function Window.sheet(idx)
+  local v = win and win.currentView
+  if not v then return end
+  local sh = win.sheetFrame
+  local called = v.called[idx] == true
+  local text = v.items and v.items[idx + 1] or ("Square #" .. (idx + 1))
+  sh.idx, sh.undo = idx, called
+  sh.card.phrase:SetText(Logic.escape(text))
+  local when
+  for _, c in ipairs(v.calls) do if c.idx == idx then when = c.t end end
+  local mayCall = v.canCall and v.state == "open"
+  if called then
+    sh.card.eyebrow:SetText("CALLED AT " .. W.clock(when))
+    sh.card.note:SetText(mayCall and "Undoing leaves no trace: any bingo that rested on this call goes with it." or "")
+    sh.card.confirm:SetLabel("Undo this call")
+  else
+    sh.card.eyebrow:SetText(mayCall and "CALL THIS SQUARE?" or "SQUARE")
+    sh.card.note:SetText(mayCall and "Every board in the game ticks at once." or "")
+    sh.card.confirm:SetLabel("Call it")
+  end
+  if mayCall then sh.card.confirm:Show() else sh.card.confirm:Hide() end
+  sh.card.cancel:SetLabel(mayCall and "Cancel" or "Close")
+  sh:Show()
 end
 
 function Window.toggle()
@@ -616,8 +676,8 @@ local function renderGame(v)
     f.action:Show(); f.action:SetLabel("Back to games"); f.action:SetEnabledState(true)
     f.action:SetScript("OnClick", function() app.leaveToLobby(); Window.show("lobby") end)
   elseif v.canCall then
-    f.text:SetText(v.isHost and "You are calling: use Call a square, or Ctrl-click the board. Right-click a name to let them call."
-                              or "You can call: use Call a square, or Ctrl-click the board. Click a lit row to undo.")
+    f.text:SetText(v.isHost and "You are calling. Click a square to call it; click a called square to undo. Right-click a name to let them call."
+                              or "You can call. Click a square to call it; click a called square to undo.")
     if v.isHost then
       f.action:Show(); f.action:SetLabel("Close game"); f.action:SetEnabledState(true)
       f.action:SetScript("OnClick", function()

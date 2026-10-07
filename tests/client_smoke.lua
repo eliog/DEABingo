@@ -141,6 +141,11 @@ for _, c in ipairs(clients) do
   -- hover + click a cell
   local cell = Window.frame().views.game.board.cells[1]
   cell.__scripts.OnEnter(cell); cell.__scripts.OnLeave(cell); cell.__scripts.OnClick(cell, "LeftButton")
+  -- the sheet opened; confirm it, then open and cancel another
+  local sh = Window.frame().sheetFrame
+  assert(sh.__shown, "sheet did not open on click")
+  sh.card.confirm.__scripts.OnClick(sh.card.confirm); pump()
+  Window.sheet(cell.item); sh.card.cancel.__scripts.OnClick(sh.card.cancel)
   Window.setCombat(true); Window.setCombat(false)
   -- caller panel: switch mode, filter, click a row (calls or undoes through App)
   local game = Window.frame().views.game

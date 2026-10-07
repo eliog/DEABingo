@@ -32,6 +32,8 @@ local function newWidget(kind, name)
       elseif key == "Hide" then return function(s) s.__shown = false end
       elseif key == "HasFocus" then return function() return false end
       elseif key == "GetVerticalScroll" then return function(s) return s.__scroll or 0 end
+      elseif key == "GetFrameLevel" then return function(s) return s.__level or 1 end
+      elseif key == "SetFrameLevel" then return function(s, v) s.__level = v end
       elseif key == "SetVerticalScroll" then return function(s, v) s.__scroll = v end
       elseif key == "IsResizable" then return function() return true end
       elseif key == "GetEffectiveScale" then return function() return 1 end

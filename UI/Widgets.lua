@@ -70,6 +70,7 @@ function W.fonts()
     bodyBold = fontObject("BodyBold", "bodyBold", 13),
     small = fontObject("Small", "body", 11.5),
     big = fontObject("Big", "heading", 26),
+    phrase = fontObject("Phrase", "body", 18),
   }
 end
 
