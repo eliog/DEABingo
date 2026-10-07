@@ -153,7 +153,10 @@ function Board.new(parent)
     end
   end
   self.fontSize = 12
-  self.frame:SetScript("OnSizeChanged", function() self:Layout() end)
+  self.frame:SetScript("OnSizeChanged", function()
+    if self.laidOut then self.laidOut = nil; return end   -- our own SetHeight from Layout
+    self:Layout()
+  end)
   return self
 end
 
@@ -211,6 +214,8 @@ function Board:Layout()
   local items = self.view and self.view.items
   local size = Board.MIN_FONT
   if items then
+    -- Rows grow before any text is allowed to clip: the grown height is
+    -- the one the cells are laid out at, and the frame grows with them.
     local fitted = fitSize(items, cellW, cellH)
     local grow = 0
     while not fitted and grow < 4 do
@@ -218,8 +223,14 @@ function Board:Layout()
       fitted = fitSize(items, cellW, cellH + grow * 6)
     end
     size = fitted or Board.MIN_FONT
+    cellH = cellH + grow * 6
   end
   self.fontSize = size
+  local needed = cellH * 5 + gap * 4
+  if needed > height then
+    self.laidOut = true
+    f:SetHeight(needed)   -- fires OnSizeChanged once more; the fit below then holds
+  end
   for p, c in ipairs(self.cells) do
     local row, col = math.floor((p - 1) / 5), (p - 1) % 5
     c:ClearAllPoints()
