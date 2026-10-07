@@ -190,6 +190,7 @@ function Mirror:applyDelta(g, msg)
     g.state = "closed"
     g.closedAt = f.closedAt
     if self.cards[g.gid] then self.cards[g.gid].state = "closed" end
+    if self.deps.onEvent then self.deps.onEvent("close", { gid = g.gid }) end
   elseif t == "TR" then
     g.gen = f.gen
     g.owner = f.newHost
@@ -292,7 +293,11 @@ function Mirror:onCard(gid, f, sender)
   if g then
     if f.gen > g.gen then g.gen, g.owner = f.gen, sender end
     g.lastActivity = f.lastActivity
-    if f.state == "closed" and g.state ~= "closed" then g.state = "closed" end
+    if f.state == "closed" and g.state ~= "closed" then
+      g.state = "closed"
+      g.closedAt = g.closedAt or f.lastActivity
+      if self.deps.onEvent then self.deps.onEvent("close", { gid = gid }) end
+    end
     if f.seq > g.seq then
       self:requestSync(gid)
     elseif f.seq == g.seq and f.callMask ~= Codec.callMask(g.calls) then

@@ -99,6 +99,18 @@ function View.fromMirror(game, me, card)
   return build(v, game.roster, game.calls, game.items, me)
 end
 
+-- A finished game from the history store. Read-only: nobody can call.
+function View.fromHistory(entry, me)
+  local v = {
+    gid = entry.gid, title = entry.title or "", state = "closed", owner = entry.owner or "",
+    ownerShort = View.shortName(entry.owner), isHost = false, hostAway = false,
+    audience = entry.audience, createdAt = entry.createdAt, closedAt = entry.closedAt, frozen = true, history = true,
+  }
+  local v2 = build(v, entry.roster or {}, entry.calls or {}, entry.items, me)
+  v2.canCall = false
+  return v2
+end
+
 -- Lobby rows from mirror cards plus games this client hosts.
 function View.lobby(cards, hosted, me)
   local out = {}

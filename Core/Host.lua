@@ -177,6 +177,7 @@ function Host:close()
     self:emit("CX", { seq = self:bump(), closedAt = now })
   end
   self:persist()
+  if self.deps.onEvent then self.deps.onEvent("close", { gid = r.gid }) end
   return true
 end
 

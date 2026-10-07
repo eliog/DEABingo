@@ -58,6 +58,21 @@ describe("view model", function()
     assert.is_true(dv.calls[1].t >= dv.calls[5].t)
   end)
 
+  it("builds a read-only view from a history entry", function()
+    local board = {}
+    for i = 0, 23 do board[#board + 1] = i end
+    table.insert(board, 13, -1)
+    local entry = { gid = "h1", title = "Old night", owner = "Owner-Pagle", closedAt = 1700000000,
+      items = items(), roster = { ["Owner-Pagle"] = { board = board, canCall = false, bingoAt = 1699999999 } }, calls = { [0] = 1699999990 } }
+    local v = View.fromHistory(entry, "Owner-Pagle")
+    assert.is_true(v.history)
+    assert.are.equal("closed", v.state)
+    assert.is_false(v.canCall)
+    assert.are.equal(1, v.callCount)
+    assert.are.equal(1, v.standings[1].rank)
+    assert.are.equal("Square number 1", v.calls[1].text)
+  end)
+
   it("lists hosted games first in the lobby and skips the host's own card", function()
     local cards = {
       a = { state = "open", host = "Other-Pagle", title = "Zeta", players = 3, callCount = 2, audience = "G" },

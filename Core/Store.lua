@@ -94,10 +94,23 @@ function Store:itemSets()
   return out
 end
 
+-- A finished game, kept readable: title, items, every board, every call,
+-- who won and when. Replaces an earlier entry for the same game.
 function Store:addHistory(entry)
+  if type(entry) ~= "table" or type(entry.gid) ~= "string" then return end
   local h = self.db.history
+  for i = #h, 1, -1 do if type(h[i]) == "table" and h[i].gid == entry.gid then table.remove(h, i) end end
   h[#h + 1] = entry
   while #h > Store.HISTORY_MAX do table.remove(h, 1) end
+end
+
+function Store:history()
+  local out = {}
+  for _, e in ipairs(self.db.history) do
+    if type(e) == "table" and type(e.gid) == "string" and type(e.roster) == "table" and type(e.calls) == "table" then out[#out + 1] = e end
+  end
+  table.sort(out, function(a, b) return (a.closedAt or 0) > (b.closedAt or 0) end)
+  return out
 end
 
 return Store
