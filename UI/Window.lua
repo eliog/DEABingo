@@ -371,6 +371,60 @@ local function buildSetup(f)
   pc.card.cancel:SetPoint("RIGHT", pc.card.use, "LEFT", -8, 0)
   pc:Hide()
   s.pasteCard = pc
+
+  -- Previous games: a scrolling picker, since a row of buttons grows
+  -- without bound and two nights can share a title.
+  local pk = CreateFrame("Button", nil, s)
+  pk:SetAllPoints(f)
+  pk:SetFrameLevel((s:GetFrameLevel() or 0) + 30)
+  pk.scrim = W.rect(pk, "scrim"); pk.scrim:SetAllPoints()
+  pk:SetScript("OnClick", function() pk:Hide() end)
+  pk.card = W.panel(pk, "raised")
+  pk.card:SetSize(560, 440)
+  pk.card:SetPoint("CENTER", 0, 10)
+  pk.card:EnableMouse(true)
+  pk.card.eyebrow = W.text(pk.card, W.fonts().eyebrow, "inkFaint"); pk.card.eyebrow:SetPoint("TOPLEFT", 18, -16); pk.card.eyebrow:SetText("PREVIOUS GAMES")
+  pk.card.hint = W.text(pk.card, W.fonts().small, "inkDim"); pk.card.hint:SetPoint("TOPLEFT", 18, -34); pk.card.hint:SetPoint("RIGHT", -18, 0)
+  pk.card.hint:SetText("Every set of squares this character has hosted or played, most recent first. Pick one to start from it.")
+  pk.card.list = scrollList(pk.card, 58, function(parent)
+    local row = CreateFrame("Button", nil, parent)
+    row.hover = W.rect(row, "surface", "BACKGROUND"); row.hover:SetAllPoints(); row.hover:Hide()
+    row.rule = row:CreateTexture(nil, "BORDER"); Theme.register(row.rule, "line", "bg")
+    row.rule:SetPoint("BOTTOMLEFT"); row.rule:SetPoint("BOTTOMRIGHT"); row.rule:SetHeight(W.px(1))
+    row.title = W.text(row, W.fonts().bodyBold, "ink"); row.title:SetPoint("TOPLEFT", 6, -9); row.title:SetPoint("RIGHT", -120, 0)
+    row.when = W.text(row, W.fonts().small, "inkFaint", "RIGHT"); row.when:SetPoint("TOPRIGHT", -6, -10); row.when:SetWidth(110)
+    row.preview = W.text(row, W.fonts().small, "inkDim"); row.preview:SetPoint("BOTTOMLEFT", 6, 9); row.preview:SetPoint("RIGHT", -6, 0)
+    row.preview:SetWordWrap(false)
+    row:SetScript("OnEnter", function(self) self.hover:Show() end)
+    row:SetScript("OnLeave", function(self) self.hover:Hide() end)
+    row:SetScript("OnClick", function(self)
+      if not self.set then return end
+      s:SetItems(self.set.items)
+      if self.set.titleHint and (s.title:GetText() == "" or s.title:GetText():match("^%a+ raid$")) then s.title:SetText(self.set.titleHint) end
+      pk:Hide()
+    end)
+    return row
+  end)
+  pk.card.list:SetPoint("TOPLEFT", 12, -66); pk.card.list:SetPoint("BOTTOMRIGHT", -8, 56)
+  pk.card.cancel = W.button(pk.card, "Cancel", function() pk:Hide() end, { width = 100, height = 30 })
+  pk.card.cancel:SetPoint("BOTTOMRIGHT", -16, 14)
+  pk:Hide()
+  s.pickerCard = pk
+  function s:OpenPicker()
+    local saved = {}
+    for _, src in ipairs(app.itemSets()) do if src.saved then saved[#saved + 1] = src end end
+    pk.card.list:Fill(saved, function(row, set)
+      row.set = set
+      row.title:SetText(Logic.escape(set.name or ""))
+      row.when:SetText(set.usedAt and set.usedAt > 0 and date("%a %d %b", set.usedAt) or "")
+      local bits = {}
+      for i = 1, math.min(4, #set.items) do bits[i] = set.items[i] end
+      row.preview:SetText(Logic.escape(table.concat(bits, "  ·  ")))
+    end)
+    pk:Show()
+  end
+  s.previousBtn = W.button(s, "Previous games…", function() s:OpenPicker() end, { width = 170, height = 26, font = W.fonts().small })
+
   function s:OpenPaste()
     pc.card.edit:SetText("")
     pc.card.count:SetText("")
@@ -468,27 +522,34 @@ local function buildSetup(f)
     else
       self.audienceHint:SetText(self.audience == "G" and "Guild members anywhere, no strangers." or "Anyone grouped with you, pugs included.")
     end
-    -- start-from buttons: presets and saved sets
+    -- start-from row: paste, the shipped presets, and one button for the picker
     local sources = app.itemSets()
     for _, b in ipairs(self.fromButtons) do b:Hide() end
     self.pasteBtn:ClearAllPoints()
     self.pasteBtn:SetPoint("TOPLEFT", self.fromLabel, "BOTTOMLEFT", 0, -4)
-    local x = 156
-    for i, src in ipairs(sources) do
-      local b = self.fromButtons[i]
-      if not b then
-        b = W.button(self, "", function(btn) self:SetItems(btn.items); if self.title:GetText() == "" and btn.titleHint then self.title:SetText(btn.titleHint) end end, { width = 150, height = 26, font = W.fonts().small })
-        self.fromButtons[i] = b
+    local x, n, saved = 156, 0, 0
+    for _, src in ipairs(sources) do
+      if src.saved then
+        saved = saved + 1
+      else
+        n = n + 1
+        local b = self.fromButtons[n]
+        if not b then
+          b = W.button(self, "", function(btn) self:SetItems(btn.items) end, { width = 150, height = 26, font = W.fonts().small })
+          self.fromButtons[n] = b
+        end
+        b.items = src.items
+        b:SetLabel(src.name)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", self.fromLabel, "BOTTOMLEFT", x, -4)
+        b:Show()
+        x = x + 156
       end
-      b.items = src.items
-      b.titleHint = src.titleHint
-      b:SetLabel(src.name)
-      b:ClearAllPoints()
-      b:SetPoint("TOPLEFT", self.fromLabel, "BOTTOMLEFT", x, -4)
-      b:Show()
-      x = x + 156
-      if x > 760 then break end
     end
+    self.previousBtn:ClearAllPoints()
+    self.previousBtn:SetPoint("TOPLEFT", self.fromLabel, "BOTTOMLEFT", x, -4)
+    self.previousBtn:SetLabel(saved == 0 and "Previous games" or ("Previous games (" .. saved .. ")…"))
+    self.previousBtn:SetEnabledState(saved > 0)
     self:Validate()
   end
 

@@ -372,7 +372,7 @@ function App.createGame(opts)
     local okay, err2 = host:open()
     if not okay then return nil, err2 end
   end
-  App.store:saveItemSet(record.itemsHash, record.title, record.items)
+  App.store:saveItemSet(record.itemsHash, record.title, record.items, GetServerTime())
   App.uiRefresh()
   return record
 end
@@ -434,7 +434,7 @@ App.ui = {
   itemSets = function()
     local out = {}
     for _, p in ipairs(ns.PRESETS) do out[#out + 1] = { name = p.name, items = p.items } end
-    for _, s in ipairs(App.store:itemSets()) do out[#out + 1] = { name = s.title, items = s.items, titleHint = s.title } end
+    for _, s in ipairs(App.store:itemSets()) do out[#out + 1] = { name = s.title, items = s.items, titleHint = s.title, usedAt = s.usedAt, saved = true } end
     return out
   end,
 }

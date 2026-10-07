@@ -159,6 +159,10 @@ for _, c in ipairs(clients) do
   st:OpenPaste(); st.pasteCard.card.edit:SetText("one\ntwo\nthree"); st.pasteCard.card.edit.__scripts.OnTextChanged(st.pasteCard.card.edit)
   st.pasteCard.card.use.__scripts.OnClick(st.pasteCard.card.use)
   assert(st.boxes[3].box:GetText() == "three", "paste did not fill the squares")
+  st:OpenPicker()
+  local prow = st.pickerCard.card.list.rows[1]
+  if prow and prow.set then prow.__scripts.OnClick(prow); assert(st.boxes[1].box:GetText() ~= "", "picker did not fill") end
+  st.pickerCard:Hide()
   Window.show("game"); Window.refresh()
   -- caller panel: switch mode, filter, click a row (calls or undoes through App)
   local game = Window.frame().views.game

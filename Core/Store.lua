@@ -77,10 +77,10 @@ function Store:saveJoined(gid, game)
   if game.items and game.itemsHash then self:saveItemSet(game.itemsHash, game.title, game.items) end
 end
 
-function Store:saveItemSet(hash, title, items)
+function Store:saveItemSet(hash, title, items, usedAt)
   if type(hash) ~= "string" or not Logic.checkItems(items).ok then return end
   local set = self.db.itemSets[hash]
-  self.db.itemSets[hash] = { title = title, items = items, usedAt = (set and set.usedAt) or 0 }
+  self.db.itemSets[hash] = { title = title, items = items, usedAt = usedAt or (set and set.usedAt) or 0 }
 end
 
 function Store:itemSets()
