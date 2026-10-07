@@ -295,6 +295,20 @@ function Mirror:handle(msg, sender)
     self:persist(gid)
   elseif t == "SN" then
     if f.gen < g.gen then return end
+    -- Parts of one snapshot share seq; collect them, apply when complete.
+    local st = g.snapshotParts
+    if not st or st.seq ~= f.seq or st.of ~= f.of then
+      st = { seq = f.seq, of = f.of, got = {}, count = 0, rows = {} }
+      g.snapshotParts = st
+    end
+    if not st.got[f.part] then
+      st.got[f.part] = true
+      st.count = st.count + 1
+      for _, row in ipairs(f.roster) do st.rows[#st.rows + 1] = row end
+    end
+    if st.count < st.of then return end
+    g.snapshotParts = nil
+    f.roster = st.rows
     self:applySnapshot(g, f)
     if not g.items then self:requestItems(gid) end
     self:persist(gid)

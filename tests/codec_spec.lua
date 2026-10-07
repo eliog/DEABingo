@@ -30,7 +30,7 @@ describe("codec", function()
              lastActivity = 1700000000, closedAt = nil, itemsHash = "ab12cd", audience = "R",
              roster = { { name = "Dorn-Pagle", board = board, canCall = false, bingoAt = nil },
                         { name = "Thalgrim-Pagle", board = F.deals[2].board, canCall = true, bingoAt = 1700000002 } },
-             calls = { { idx = 0, t = 1700000000 }, { idx = 23, t = 1700000001 } } },
+             calls = { { idx = 0, t = 1700000000 }, { idx = 23, t = 1700000001 } }, part = 1, of = 1 },
       NV = { ver = 2 },
     }
     for msgType, fields in pairs(samples) do

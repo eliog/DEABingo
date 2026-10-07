@@ -31,6 +31,8 @@ Host.HEARTBEAT = 30            -- seconds between GA cards
 Host.IDLE_CLOSE = 8 * 3600     -- idle seconds before a game closes itself
 Host.SYNC_DELAY = 2            -- collect SQ requests this long, then answer once
 Host.SYNC_COOLDOWN = 3         -- per requester; a missed call must not wait long
+Host.MAX_PLAYERS = 120         -- a snapshot of more would not fit the wire budget
+Host.SNAPSHOT_ROWS = 40        -- roster rows per snapshot part
 
 local DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
 local function base36(n)
@@ -91,11 +93,16 @@ function Host:persist()
   if self.deps.persist then self.deps.persist(self.record) end
 end
 
--- Build and send; a failed encode is a programming error, so it is loud.
+-- Build and send. A payload that cannot be encoded is logged and dropped,
+-- never thrown: this runs from timers and message handlers.
 function Host:emit(msgType, fields, channel, target)
   local payload, err = Codec.encode(msgType, self.record.gid, fields)
-  assert(payload, err)
+  if not payload then
+    self:log(("could not send %s: %s"):format(msgType, tostring(err)))
+    return false
+  end
   self.deps.send(payload, channel or self:channel(), target)
+  return true
 end
 
 function Host:bump()
@@ -311,22 +318,36 @@ end
 
 ---------------------------------------------------------------------- sync
 
-function Host:snapshot()
+-- The snapshot, in parts the wire can carry: every part repeats the
+-- scalars and the calls, and carries a slice of the roster.
+function Host:snapshots()
   local r = self.record
-  local roster = {}
+  local rows = {}
   for _, name in ipairs(sortedNames(r.roster)) do
     local e = r.roster[name]
-    roster[#roster + 1] = { name = name, board = e.board, canCall = e.canCall, bingoAt = e.bingoAt }
+    rows[#rows + 1] = { name = name, board = e.board, canCall = e.canCall, bingoAt = e.bingoAt }
   end
   local calls = {}
   for idx, t in pairs(r.calls) do calls[#calls + 1] = { idx = idx, t = t } end
   table.sort(calls, function(a, b) return a.idx < b.idx end)
-  return {
-    gen = r.gen, seq = r.seq, state = r.state == "closed" and "closed" or "open",
-    title = r.title, owner = r.owner, createdAt = r.createdAt, lastActivity = r.lastActivity,
-    closedAt = r.closedAt, itemsHash = r.itemsHash, audience = r.audience,
-    roster = roster, calls = calls,
-  }
+  local of = math.max(1, math.ceil(#rows / Host.SNAPSHOT_ROWS))
+  local parts = {}
+  for part = 1, of do
+    local slice = {}
+    for i = (part - 1) * Host.SNAPSHOT_ROWS + 1, math.min(#rows, part * Host.SNAPSHOT_ROWS) do slice[#slice + 1] = rows[i] end
+    parts[part] = {
+      gen = r.gen, seq = r.seq, state = r.state == "closed" and "closed" or "open",
+      title = r.title, owner = r.owner, createdAt = r.createdAt, lastActivity = r.lastActivity,
+      closedAt = r.closedAt, itemsHash = r.itemsHash, audience = r.audience,
+      roster = slice, calls = calls, part = part, of = of,
+    }
+  end
+  return parts
+end
+
+-- Single-part form, kept for callers that only need the shape.
+function Host:snapshot()
+  return self:snapshots()[1]
 end
 
 -- Requests are collected for a moment. One requester gets a whisper; several
@@ -339,10 +360,12 @@ function Host:flushSync()
   if #requesters == 0 then return end
   local now = self.deps.now()
   for _, name in ipairs(requesters) do self.lastSyncTo[name] = now end
-  if #requesters == 1 then
-    self:emit("SN", self:snapshot(), "WHISPER", requesters[1])
-  else
-    self:emit("SN", self:snapshot())
+  for _, part in ipairs(self:snapshots()) do
+    if #requesters == 1 then
+      self:emit("SN", part, "WHISPER", requesters[1])
+    else
+      self:emit("SN", part)
+    end
   end
 end
 
@@ -358,6 +381,8 @@ function Host:handle(msg, sender)
   elseif t == "JN" then
     if r.state ~= "open" then return end
     if not self.deps.isMember(sender, r.audience) then self:log("join refused, not a member: " .. sender); return end
+    if not r.roster[sender] and rosterCount(r) >= Host.MAX_PLAYERS then self:log("join refused, game is full: " .. sender); return end
+    self.lastSyncTo[sender] = nil   -- a (re)join always needs a snapshot, cooldown or not
     local entry = self:addPlayer(sender)
     self:emit("WE", { seq = r.seq, board = entry.board, canCall = self:canCall(sender), createdAt = r.createdAt,
                       bingoAt = entry.bingoAt, itemsHash = r.itemsHash, gen = r.gen }, "WHISPER", sender)

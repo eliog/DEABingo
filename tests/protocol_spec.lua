@@ -38,6 +38,17 @@ local function joinAll(hub, host, names)
   hub:advance(Host.SYNC_DELAY + 1)
 end
 
+-- A join wave as the chat throttle would deliver it: a few joins a second,
+-- not sixty in one instant (which would trip the per-sender rate bucket).
+local function joinPaced(hub, host, names, perSecond)
+  perSecond = perSecond or 4
+  for i = 2, #names do
+    assert(hub.clients[names[i]].mirror:join(host.record.gid))
+    if (i - 1) % perSecond == 0 then hub:advance(1) else hub:flush() end
+  end
+  hub:advance(Host.SYNC_DELAY + 2)
+end
+
 -- The item index at a board position (1-based), for building a line.
 local function itemAt(board, pos) return board[pos] end
 
@@ -372,6 +383,66 @@ describe("items", function()
         assert.is_nil(hub.clients[names[i]].sent[k].payload:find("\31IQ\31", 1, true), names[i] .. " re-requested items")
       end
     end
+  end)
+end)
+
+describe("capacity", function()
+  it("syncs a follower in a 60-player game without the host throwing", function()
+    local hub, host, _, names = guildNight(60)
+    joinPaced(hub, host, names)
+    local gid = host.record.gid
+    local f = hub.clients[names[60]]
+    local n = 0 for _ in pairs(f.mirror.games[gid].roster) do n = n + 1 end
+    assert.are.equal(60, n, "follower roster incomplete")
+    assert.are.equal(host.record.seq, f.mirror.games[gid].seq)
+    -- a fresh sync request after a reload also completes
+    hub:removeClient(names[60])
+    local again = hub:addClient(names[60], { guild = "DEA", group = "raid1" })
+    again.mirror:hello(); hub:flush()
+    again.mirror:join(gid); hub:flush(); hub:advance(Host.SYNC_DELAY + 1)
+    n = 0 for _ in pairs(again.mirror.games[gid].roster) do n = n + 1 end
+    assert.are.equal(60, n, "resynced roster incomplete")
+    for _, line in ipairs(hub.log) do assert.is_nil(line:find("too long", 1, true), line) end
+  end)
+
+  it("calls the last square with 70 winners at once without throwing", function()
+    local hub, host, _, names = guildNight(70)
+    joinPaced(hub, host, names)
+    local gid = host.record.gid
+    for idx = 0, 23 do
+      assert.is_truthy(host:call(idx), "call " .. idx)
+      hub:advance(1)
+    end
+    local f = hub.clients[names[2]]
+    local winners = 0
+    for _, e in pairs(f.mirror.games[gid].roster) do if e.bingoAt then winners = winners + 1 end end
+    assert.are.equal(70, winners)
+  end)
+
+  it("drops an impossible payload instead of throwing", function()
+    local hub, host = guildNight(2)
+    local okay = host:emit("TI", { seq = host.record.seq + 1, title = ("x"):rep(50) })
+    assert.is_false(okay)
+  end)
+
+  it("refuses joins past the player cap", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    for i = 1, Host.MAX_PLAYERS + 5 do
+      local name = ("Extra%d-Pagle"):format(i)
+      hub:addClient(name, { guild = "DEA", group = "raid1" })
+      host.record.roster[name] = host.record.roster[name] or nil
+    end
+    -- fill the roster to the cap directly, then one more real join is refused
+    local rng = hub.rng
+    local n = 0 for _ in pairs(host.record.roster) do n = n + 1 end
+    for i = n + 1, Host.MAX_PLAYERS do
+      host.record.roster[("Filler%d-Pagle"):format(i)] = { board = Logic.dealBoard(rng), canCall = false, bingoAt = nil, joinedAt = hub:now() }
+    end
+    local extra = hub.clients["Extra1-Pagle"]
+    extra.mirror:hello(); hub:flush()
+    extra.mirror:join(host.record.gid); hub:flush()
+    assert.is_nil(host.record.roster["Extra1-Pagle"])
   end)
 end)
 

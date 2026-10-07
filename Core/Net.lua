@@ -165,9 +165,16 @@ function Net:dispatch(payload, channel, sender)
   if self.mirror then self.mirror:handle(msg, sender) end
 end
 
+-- Timers must never die to one bad record: every tick is protected.
 function Net:tick()
-  for _, host in pairs(self.hosts) do host:tick() end
-  if self.mirror then self.mirror:tick() end
+  for _, host in pairs(self.hosts) do
+    local okay, err = pcall(host.tick, host)
+    if not okay then self:log("host tick error: " .. tostring(err)) end
+  end
+  if self.mirror then
+    local okay, err = pcall(self.mirror.tick, self.mirror)
+    if not okay then self:log("mirror tick error: " .. tostring(err)) end
+  end
 end
 
 return Net

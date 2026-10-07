@@ -25,7 +25,7 @@ ns.Codec = Codec
 Codec.PROTOCOL = 1
 Codec.FIELD = "\31"
 Codec.LIST = "\30"
-Codec.MAX_PAYLOAD = 4000    -- reassembled bytes accepted before parsing
+Codec.MAX_PAYLOAD = 8000    -- reassembled bytes accepted before parsing (AceComm chunks it)
 Codec.NAME_MAX = 64
 Codec.GID_MAX = 24
 Codec.HASH_LEN = 6
@@ -226,7 +226,7 @@ local SEQ = kinds.int(0, 2 ^ 31)
 local IDX = kinds.int(0, N - 1)
 local TIME = kinds.int(0, T)
 local OPTTIME = kinds.optint(0, T)
-local NAMES = kinds.list(kinds.name(), 60)
+local NAMES = kinds.list(kinds.name(), 200)
 
 -- type -> ordered list of {field, kind}
 Codec.SCHEMA = {
@@ -256,7 +256,8 @@ Codec.SCHEMA = {
   SN = { { "gen", kinds.int(1, 9999) }, { "seq", SEQ }, { "state", kinds.enum({ "open", "closed" }) },
          { "title", kinds.text(Logic.TITLE_MAX) }, { "owner", kinds.name() }, { "createdAt", TIME },
          { "lastActivity", TIME }, { "closedAt", OPTTIME }, { "itemsHash", kinds.hash() }, { "audience", kinds.enum({ "G", "R" }) },
-         { "roster", kinds.list(kinds.rosterRow(), 200) }, { "calls", kinds.list(kinds.callRow(), N) } },
+         { "roster", kinds.list(kinds.rosterRow(), 200) }, { "calls", kinds.list(kinds.callRow(), N) },
+         { "part", kinds.int(1, 99) }, { "of", kinds.int(1, 99) } },
   -- a client that saw a newer protocol says so once
   NV = { { "ver", kinds.int(1, 999) } },
 }
