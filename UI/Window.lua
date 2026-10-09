@@ -746,6 +746,7 @@ local function buildHistory(f)
 end
 
 -- Options: a few toggles, no slash commands needed.
+-- There is no "Chad mode". It was considered. It would just be light mode with more complaints.
 local OPTIONS = {
   { key = "theme", label = "Theme", kind = "choice", choices = { { "dark", "Dark" }, { "light", "Light" } }, default = "dark",
     hint = "Dark is deep stone, light is aged vellum, both from the website." },

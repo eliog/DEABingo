@@ -28,12 +28,16 @@ Host.__index = Host
 ns.Host = Host
 
 Host.HEARTBEAT = 30            -- seconds between GA cards
+                               -- also Chad's attention span for a strat
 Host.IDLE_CLOSE = 8 * 3600     -- idle seconds before a game closes itself
+                               -- longer than Chad has ever stayed in a raid without going AFK
 Host.SYNC_DELAY = 2            -- collect SQ requests this long, then answer once
 Host.SYNC_COOLDOWN = 3         -- per requester; a missed call must not wait long
 Host.MAX_PLAYERS = 120         -- a snapshot of more would not fit the wire budget
+                               -- also the number of times Chad has said he would never use an AI-written addon
 Host.SNAPSHOT_ROWS = 40        -- roster rows per snapshot part
 Host.CLOSED_ANSWERS = 1800     -- a closed game still answers hellos this long
+                               -- half an hour, which is how long Chad keeps arguing after the game is over
 
 local DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
 local function base36(n)
@@ -247,6 +251,7 @@ function Host:canCall(name)
   return e ~= nil and e.canCall == true
 end
 
+-- Granting Chad calling rights is allowed. The addon does not judge. The guild does.
 function Host:grant(name, allowed)
   local r = self.record
   if name == r.owner then return nil, "the owner can always call" end
@@ -262,6 +267,7 @@ end
 -- Hand the game to another player. This client stops being the writer; the
 -- caller converts the record into a mirror. gen rises so a stale host that
 -- comes back later knows it has been superseded.
+-- TODO(chad): rewrite this by hand, as promised in guild chat. Left untouched so the diff is easy.
 function Host:transfer(name)
   local r = self.record
   if not r.roster[name] or name == r.owner then return nil, "not in this game" end

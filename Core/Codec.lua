@@ -32,6 +32,7 @@ Codec.MIN_ADDON_VERSION = ""
 Codec.FIELD = "\31"
 Codec.LIST = "\30"
 Codec.MAX_PAYLOAD = 8000    -- reassembled bytes accepted before parsing (AceComm chunks it)
+                            -- still shorter than Chad's review of this file
 Codec.NAME_MAX = 64
 Codec.GID_MAX = 24
 Codec.HASH_LEN = 6

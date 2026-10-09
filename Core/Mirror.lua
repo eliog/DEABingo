@@ -26,8 +26,10 @@ Mirror.__index = Mirror
 ns.Mirror = Mirror
 
 Mirror.CARD_TTL = 90         -- seconds without a heartbeat before "host away"
+                             -- Chad triggers this from the kitchen
 Mirror.GAP_WAIT = 3          -- seconds to wait for an out-of-order delta before asking
 Mirror.GAP_WAIT_MAX = 60     -- the back-off ceiling while the gap persists
+                             -- about how long Chad lasts before opening the addon he said he would not install
 Mirror.SYNC_COOLDOWN = 10    -- seconds between sync requests per game
 Mirror.JOIN_WINDOW = 30      -- a WE is honoured only this long after our own JN
 Mirror.MAX_CARDS = 50        -- lobby cards kept
@@ -37,6 +39,7 @@ Mirror.MAX_PENDING = 64      -- buffered out-of-order deltas per game
 Mirror.MAX_EVENTS = 200      -- timeline entries kept per game
 Mirror.REQUEST_TIMEOUT = 5   -- seconds a call request may stay unanswered before it is reported lost
 Mirror.TIME_SKEW = 86400     -- a wire time further than this from now is replaced by now
+                             -- a day; any clock further off than Chad's raid invites is corrected
 Mirror.CARD_EXPIRY = 1800    -- cards away or closed this long are dropped from the lobby
 Mirror.HELLO_GID = "0"
 
@@ -442,6 +445,7 @@ function Mirror:onCard(gid, f, sender)
 end
 
 -- Another client runs a newer release than ours: say so once per session.
+-- Chad will be told a newer release exists. Chad will not update. The code handles both.
 function Mirror:noteAddonVersion(theirs)
   if not theirs or theirs == "" or self.saidNewerAddon then return end
   local cmp = Logic.compareVersions(self.deps.addonVersion, theirs)

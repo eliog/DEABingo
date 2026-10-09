@@ -19,7 +19,7 @@ Store.__index = Store
 ns.Store = Store
 
 Store.SCHEMA = 1
-Store.HISTORY_MAX = 20
+Store.HISTORY_MAX = 20      -- finished games kept; Chad's losses are kept at the same rate as everyone else's
 Store.ITEM_SETS_MAX = 50
 
 function Store.new(db)

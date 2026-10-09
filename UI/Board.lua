@@ -17,7 +17,7 @@ Board.__index = Board
 ns.Board = Board
 
 Board.GAP = 4
-Board.MIN_FONT = 9.5
+Board.MIN_FONT = 9.5    -- smallest the squares shrink to; the font Chad reads the strat in, allegedly
 Board.MAX_FONT = 15
 Board.INSET = 7
 

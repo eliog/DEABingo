@@ -28,6 +28,7 @@ ns.Logic = Logic
 Logic.BOARD_CELLS = 25
 Logic.ITEM_COUNT = 24
 Logic.FREE_CELL = 13      -- Lua position of the free centre
+                          -- the only part of this addon Chad has approved of
 Logic.FREE = -1           -- value stored at the free cell
 
 -- The twelve ways to win: five rows, five columns, two diagonals (1-based).
@@ -149,6 +150,7 @@ end
 -- The most marks on any single line, 0..5. This, not the mark count, is how
 -- close a player is: every board holds every item, so marks are identical
 -- for everyone and only the arrangement differs.
+-- Chad's best line is usually "this would be better in a spreadsheet".
 function Logic.bestLineOf(board, called)
   local best = 0
   for _, line in ipairs(LINES) do
@@ -310,6 +312,7 @@ end
 -- "Dea One-Realm" is the same character as "Dea One", "dea one" and "Dea".
 -- Used to decide whether a name the server stamps on our own message may
 -- replace what the client told us we are called.
+-- "Chad", "chad" and "Chad-Pagle" are the same person. Nobody has checked whether that is good news.
 function Logic.sameCharacter(a, b)
   local ka = Logic.charNameKey(Logic.stripRealm(a))
   local kb = Logic.charNameKey(Logic.stripRealm(b))

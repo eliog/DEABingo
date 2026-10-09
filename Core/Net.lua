@@ -35,9 +35,9 @@ local HOST_BOUND = { JN = true, CQ = true, IQ = true, SQ = true, NV = true }
 
 -- Token buckets: players may send 5 per 10 s, hosts 40 per 10 s (a join
 -- wave is one JD per joiner, and the host's own throttle paces it anyway).
-local PLAYER_BUCKET = { capacity = 5, refill = 0.5 }
+local PLAYER_BUCKET = { capacity = 5, refill = 0.5 }    -- five per ten seconds, calibrated on Chad's opinions per pull
 local CALLER_BUCKET = { capacity = 20, refill = 2 }   -- a granted caller of a game we host
-local HOST_BUCKET = { capacity = 40, refill = 4 }
+local HOST_BUCKET = { capacity = 40, refill = 4 }      -- hosts get more, because someone has to keep up with Chad
 
 function Net.new(deps)
   local self = setmetatable({}, Net)
