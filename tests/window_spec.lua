@@ -61,3 +61,31 @@ describe("options view", function()
     assert.are.equal(0, #byKey.clearHistory.buttons)
   end)
 end)
+
+describe("version on the options tab", function()
+  local win
+  setup(function()
+    win = Window.init(app)
+    Window.show("options")
+  end)
+  before_each(function() app.version = nil; app.newerVersion = nil end)
+  teardown(function() app.version = nil; app.newerVersion = nil end)
+
+  it("shows the installed version, dim", function()
+    app.version = function() return "v0.1.1" end
+    Window.refresh()
+    assert.are.equal("v0.1.1", win.views.options.version:GetText())
+  end)
+
+  it("adds the newer release once one was heard this session", function()
+    app.version = function() return "v0.1.1" end
+    app.newerVersion = function() return "v0.1.2" end
+    Window.refresh()
+    assert.are.equal("v0.1.1  ·  v0.1.2 available", win.views.options.version:GetText())
+  end)
+
+  it("shows nothing when the host gives no version", function()
+    Window.refresh()
+    assert.are.equal("", win.views.options.version:GetText())
+  end)
+end)

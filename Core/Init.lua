@@ -261,6 +261,7 @@ function App.setupMinimap()
     end,
     OnTooltipShow = function(tt)
       tt:AddLine("DEA Bingo")
+      tt:AddLine(App.versionLabel(), 0.48, 0.42, 0.53)
       local v = App.currentView()
       if v then
         tt:AddLine(Logic.escape(v.title), 0.91, 0.87, 0.78)
@@ -416,6 +417,7 @@ function App.onGameEvent(kind, info)
     local mine = Compat.GetAddOnVersion(ADDON)
     print_(("%s is available (you have %s). Update from CurseForge or github.com/eliog/DEABingo/releases."):format(info.version, mine))
     App.toast({ text = "DEA Bingo " .. info.version .. " is available", sub = "You have " .. mine .. ". Update from CurseForge or GitHub.", accent = "gold", ttl = 30 })
+    App.uiRefresh()   -- the Options tab shows the newer version from now on
     return
   end
   if kind == "callLost" then
@@ -448,6 +450,13 @@ function App.onGameEvent(kind, info)
 end
 
 -- Coalesce UI refreshes: a join wave persists dozens of times a second.
+-- The installed version as people read it: "v0.1.1", or "dev build" from a checkout.
+function App.versionLabel()
+  local v = Compat.GetAddOnVersion(ADDON)
+  if v == "dev" then return "dev build" end
+  return v
+end
+
 function App.uiRefresh()
   if not ns.Window or App.refreshScheduled then return end
   App.refreshScheduled = true
@@ -727,6 +736,8 @@ App.ui = {
     if key == "theme" then ns.Theme.apply(value) end
     if ns.Chip then ns.Chip.applyOptions(App.store.db.options) end
   end,
+  version = function() return App.versionLabel() end,
+  newerVersion = function() return App.mirror and App.mirror.saidNewerAddon or nil end,
   itemSets = function()
     local out = {}
     for _, p in ipairs(ns.PRESETS) do out[#out + 1] = { name = p.name, items = p.items } end

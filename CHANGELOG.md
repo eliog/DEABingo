@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Version shown on the Options tab and in the minimap tooltip, with a note on the Options tab when a newer release is around.
+
 ## v0.1.1 (2026-10-09)
 
 - Update notice: players hear once per session when a newer release is around, and a release can set a minimum version to join.

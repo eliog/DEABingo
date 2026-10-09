@@ -704,6 +704,9 @@ local function buildOptions(f)
   o.head = W.text(o, W.fonts().eyebrow, "inkFaint")
   o.head:SetPoint("TOPLEFT", PAD + 2, -PAD - 4)
   o.head:SetText("OPTIONS")
+  -- The installed version, top right; gold with the newer one when a newer release was heard.
+  o.version = W.text(o, W.fonts().small, "inkFaint", "RIGHT")
+  o.version:SetPoint("TOPRIGHT", -PAD - 2, -PAD - 4)
   -- The rows scroll: at the minimum window height they are taller than the panel.
   o.list = scrollList(o, 58, function(parent)
     local row = CreateFrame("Frame", nil, parent)
@@ -757,6 +760,15 @@ local function buildOptions(f)
   function o:Refresh()
     self.list:Fill(OPTIONS, fill)
     self.rows = self.list.rows
+    local mine = app.version and app.version()
+    local newer = app.newerVersion and app.newerVersion()
+    if mine and newer then
+      self.version:SetText(("%s  ·  %s available"):format(mine, newer))
+      Theme.set(self.version, "gold")
+    else
+      self.version:SetText(mine or "")
+      Theme.set(self.version, "inkFaint")
+    end
   end
   return o
 end
