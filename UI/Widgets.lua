@@ -255,6 +255,31 @@ function W.meter(parent)
   return f
 end
 
+-- A 5x5 grid of dots standing for a board: marked squares lit, a winning
+-- line brighter. Positions only; the square text is never part of it.
+function W.dotGrid(parent, dot, gap)
+  local f = CreateFrame("Frame", nil, parent)
+  f:SetSize(dot * 5 + gap * 4, dot * 5 + gap * 4)
+  f.dots = {}
+  for p = 1, 25 do
+    local d = f:CreateTexture(nil, "ARTWORK")
+    d:SetSize(dot, dot)
+    local row, col = math.floor((p - 1) / 5), (p - 1) % 5
+    d:SetPoint("TOPLEFT", col * (dot + gap), -row * (dot + gap))
+    Theme.register(d, "line", "bg")
+    f.dots[p] = d
+  end
+  function f:Paint(board, called, winning)
+    local Logic = ns.Logic
+    for p = 1, 25 do
+      if winning and winning[p] then Theme.set(self.dots[p], "fel")
+      elseif Logic.isMarked(board, p, called) then Theme.set(self.dots[p], "fel", 0.55)
+      else Theme.set(self.dots[p], "line") end
+    end
+  end
+  return f
+end
+
 -- Make a frame draggable and remember where it lands.
 function W.draggable(frame, save)
   frame:SetMovable(true)

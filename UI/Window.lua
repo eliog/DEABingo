@@ -287,23 +287,47 @@ local function buildGame(f)
         app.grant(self.player.name, not self.player.canCall)
       end
     end)
-    W.tooltip(row, function(self)
-      local v = win.currentView
-      if not self.player then return nil end
-      local lines = { self.player.shortName }
-      if self.player.bingoAt then lines[#lines + 1] = "Bingo at " .. W.clock(self.player.bingoAt) end
-      lines[#lines + 1] = ("Best line %d of 5"):format(self.player.bestLine)
-      if self.player.canCall then lines[#lines + 1] = "Can call squares" end
-      if v and v.isHost and self.player.name ~= v.owner then
-        lines[#lines + 1] = self.player.canCall and "Right-click to revoke calling" or "Right-click to let them call"
-        lines[#lines + 1] = "Shift-right-click to hand them the game"
-      end
-      return lines
-    end)
+    row:SetScript("OnEnter", function(self) g:Peek(self) end)
+    row:SetScript("OnLeave", function() g.peek:Hide() end)
     return row
   end)
   g.standings.list:SetPoint("TOPLEFT", 8, -30)
   g.standings.list:SetPoint("BOTTOMRIGHT", -6, 8)
+
+  -- Hover a player: a card beside the row with their grid as dots, like
+  -- the chip's, and the lines the tooltip used to carry. Positions only;
+  -- another player's squares are never shown. Over the window, so it can
+  -- hang out to the left of the rail.
+  local pk = W.panel(f, "raised")
+  pk:SetFrameLevel((f:GetFrameLevel() or 0) + 25)
+  pk:SetWidth(240)
+  pk.name = W.text(pk, W.fonts().bodyBold, "ink"); pk.name:SetPoint("TOPLEFT", 12, -10); pk.name:SetPoint("RIGHT", -12, 0)
+  pk.name:SetWordWrap(false)
+  pk.grid = W.dotGrid(pk, 9, 3); pk.grid:SetPoint("TOPLEFT", 12, -34)
+  pk.info = W.text(pk, W.fonts().small, "inkDim"); pk.info:SetPoint("TOPLEFT", pk.grid, "TOPRIGHT", 12, 0); pk.info:SetPoint("RIGHT", -12, 0)
+  pk.hints = W.text(pk, W.fonts().small, "inkFaint"); pk.hints:SetPoint("TOPLEFT", pk.grid, "BOTTOMLEFT", 0, -8); pk.hints:SetPoint("RIGHT", -12, 0)
+  pk:Hide()
+  g.peek = pk
+  function g:Peek(row)
+    local v, p = win.currentView, row.player
+    if not (v and p and p.board) then pk:Hide(); return end
+    pk.row = row
+    pk.name:SetText(Logic.escape(p.shortName))
+    pk.grid:Paint(p.board, v.called, p.winning)
+    local info = { p.bingoAt and ("Bingo at " .. W.clock(p.bingoAt)) or ("Best line %d of 5"):format(p.bestLine) }
+    if p.canCall then info[#info + 1] = "Can call squares" end
+    pk.info:SetText(table.concat(info, "\n"))
+    local hints = {}
+    if v.isHost and p.name ~= v.owner then
+      hints[#hints + 1] = p.canCall and "Right-click to revoke calling" or "Right-click to let them call"
+      hints[#hints + 1] = "Shift-right-click to hand them the game"
+    end
+    pk.hints:SetText(table.concat(hints, "\n"))
+    pk:SetHeight(34 + pk.grid:GetHeight() + (#hints > 0 and (8 + #hints * 15) or 0) + 12)
+    pk:ClearAllPoints()
+    pk:SetPoint("TOPRIGHT", row, "TOPLEFT", -10, 4)
+    pk:Show()
+  end
 
   -- call log
   g.log = W.panel(g.rail)
@@ -1081,6 +1105,9 @@ local function renderGame(v)
     row.time:SetText(p.bingoAt and W.clock(p.bingoAt) or "")
     row.flag:SetText(p.canCall and "CALLER" or "")
   end)
+  if g.peek:IsShown() then
+    if g.peek.row and g.peek.row:IsShown() then g:Peek(g.peek.row) else g.peek:Hide() end
+  end
 
   g.log.count:SetText(v.callCount == 0 and "" or tostring(v.callCount))
   local canCall = v.canCall and v.state == "open" and v.items ~= nil

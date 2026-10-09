@@ -52,6 +52,14 @@ describe("view model", function()
     assert.are.equal("Dorn-Pagle", dv.standings[1].name)
     assert.is_true(dv.standings[1].isMe)
     assert.is_nil(hv.standings[2].rank)
+    -- every row carries its board and winning cells, for the hover grid
+    for _, row in ipairs(dv.standings) do
+      assert.are.equal(25, #row.board)
+      assert.is_table(row.winning)
+    end
+    local dorn
+    for _, row in ipairs(dv.standings) do if row.name == "Dorn-Pagle" then dorn = row end end
+    assert.is_true(dorn.winning[1] and dorn.winning[5] and true, "Dorn's winning row not marked")
     -- the call log is newest first and carries the text
     assert.are.equal(5, #dv.calls)
     assert.is_truthy(dv.calls[1].text)

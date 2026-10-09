@@ -165,3 +165,48 @@ describe("standings rows", function()
     assert.are.equal(row.meter, flagPt.rel)
   end)
 end)
+
+describe("hover card on a standings row", function()
+  local win, g, Logic
+  setup(function()
+    win = Window.init(app)
+    g = win.views.game
+    Logic = ns.Logic
+  end)
+
+  local function board()
+    local b = {}
+    for p = 1, 25 do b[p] = p - 1 end
+    b[Logic.FREE_CELL] = Logic.FREE
+    return b
+  end
+
+  it("shows the player's grid as dots, with the called squares lit", function()
+    local b = board()
+    local called = { [0] = true, [1] = true }
+    win.currentView = { called = called, isHost = false, owner = "Host-Pagle" }
+    local row = { player = { name = "Dorn-Pagle", shortName = "Dorn", bestLine = 3, board = b, winning = Logic.winningCells(b, called) } }
+    g:Peek(row)
+    assert.is_true(g.peek:IsShown())
+    assert.are.equal("Dorn", g.peek.name:GetText())
+    assert.are.equal("Best line 3 of 5", g.peek.info:GetText())
+    assert.are.equal(25, #g.peek.grid.dots)
+    assert.are.equal("", g.peek.hints:GetText())
+  end)
+
+  it("offers the host their right-click hints, and nothing for themselves", function()
+    local b = board()
+    win.currentView = { called = {}, isHost = true, owner = "Host-Pagle" }
+    g:Peek({ player = { name = "Dorn-Pagle", shortName = "Dorn", bestLine = 1, canCall = false, board = b, winning = {} } })
+    assert.matches("Right%-click to let them call", g.peek.hints:GetText())
+    g:Peek({ player = { name = "Host-Pagle", shortName = "Host", bestLine = 1, canCall = true, board = b, winning = {} } })
+    assert.are.equal("", g.peek.hints:GetText())
+    assert.matches("Can call squares", g.peek.info:GetText())
+  end)
+
+  it("hides when the row has no board to show", function()
+    win.currentView = { called = {} }
+    g:Peek({ player = { name = "Ghost-Pagle", shortName = "Ghost", bestLine = 0 } })
+    assert.is_false(g.peek:IsShown())
+  end)
+end)

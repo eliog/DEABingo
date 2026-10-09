@@ -53,6 +53,8 @@ local function build(v, roster, calls, items, me)
     rows[#rows + 1] = {
       name = name, shortName = View.shortName(name), bestLine = Logic.bestLineOf(e.board, called),
       bingoAt = e.bingoAt, canCall = e.canCall or name == v.owner, isMe = name == me,
+      -- for the hover card: positions only, the UI never shows another player's squares
+      board = e.board, winning = Logic.winningCells(e.board, called),
     }
   end
   v.standings = sortStandings(rows)

@@ -33,18 +33,9 @@ function Chip.init(callbacks)
   chip.away = W.text(chip, W.fonts().small, "gold")
   chip.away:SetPoint("LEFT", chip.count, "RIGHT", 8, 0)
 
-  chip.grid = CreateFrame("Frame", nil, chip)
-  chip.grid:SetSize(5 * 5 + 4 * 1, 5 * 5 + 4 * 1)
+  chip.grid = W.dotGrid(chip, 5, 1)
   chip.grid:SetPoint("RIGHT", -8, 0)
-  chip.dots = {}
-  for p = 1, Logic.BOARD_CELLS do
-    local d = chip.grid:CreateTexture(nil, "ARTWORK")
-    d:SetSize(5, 5)
-    local row, col = math.floor((p - 1) / 5), (p - 1) % 5
-    d:SetPoint("TOPLEFT", col * 6, -row * 6)
-    Theme.register(d, "line", "bg")
-    chip.dots[p] = d
-  end
+  chip.dots = chip.grid.dots
 
   chip.flash = chip:CreateTexture(nil, "OVERLAY")
   chip.flash:SetAllPoints()
@@ -94,12 +85,6 @@ function Chip.update(v)
   else
     chip.away:SetText(v.away == 1 and "1 away" or (v.away .. " away")); Theme.set(chip.away, v.away == 1 and "gold" or "inkDim")
   end
-  for p = 1, Logic.BOARD_CELLS do
-    local item = v.board[p]
-    local marked = item == Logic.FREE or v.called[item] == true
-    local won = v.winning[p] == true
-    Theme.set(chip.dots[p], won and "fel" or (marked and "felWash" or "line"))
-    if marked and not won then Theme.set(chip.dots[p], "fel", 0.55) end
-  end
+  chip.grid:Paint(v.board, v.called, v.winning)
   Theme.set(chip.accent, v.hostAway and "inkFaint" or "fel")
 end
