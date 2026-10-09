@@ -50,6 +50,25 @@ describe("options view", function()
     assert.are.equal(0, scroll:GetVerticalScroll())
   end)
 
+  it("re-widens its rows when the scroll frame changes size", function()
+    local scroll = scroller(win.views.options.rows[1])
+    scroll.__scripts.OnSizeChanged(scroll, 700, 300)
+    assert.are.equal(680, scroll.child:GetWidth())
+    for _, row in ipairs(win.views.options.rows) do assert.are.equal(680, row:GetWidth()) end
+  end)
+
+  it("keeps its rows while the window resizes and its own width reads as zero", function()
+    -- The client has not laid the list out yet when the window's OnSizeChanged
+    -- fires, so GetWidth() is 0 then; a fill at that moment gave every row a
+    -- negative width and the hints and buttons fell outside the clip.
+    local scroll = scroller(win.views.options.rows[1])
+    scroll.__w = 0
+    win.__scripts.OnSizeChanged(win)
+    for _, row in ipairs(win.views.options.rows) do
+      assert.is_true(row:GetWidth() > 0, "a row lost its width during the resize")
+    end
+  end)
+
   it("keeps a row per option with its controls after a refresh", function()
     Window.refresh()
     local byKey = {}

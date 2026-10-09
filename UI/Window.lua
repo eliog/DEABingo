@@ -65,8 +65,25 @@ local function scrollList(parent, rowHeight, makeRow)
     self.thumb:SetHeight(thumbH)
     self.thumb:Show()
   end
+  -- The rows are as wide as the frame less the thumb gutter. The width comes
+  -- from OnSizeChanged, not from GetWidth at fill time: the window resizes
+  -- under the list, and while the window's own OnSizeChanged runs this
+  -- frame's width still reads as 0.
+  function scroll:SetInnerWidth(w)
+    if not w or w <= 0 then return end
+    local width = w - 20
+    self.innerWidth = width
+    child:SetWidth(width)
+    for _, row in ipairs(self.rows) do row:SetWidth(width) end
+  end
+  scroll:SetScript("OnSizeChanged", function(self, w)
+    self:SetInnerWidth(w)
+    local max = math.max(0, self.child:GetHeight() - self:GetHeight())
+    if (self:GetVerticalScroll() or 0) > max then self:SetVerticalScroll(max) end
+    self:UpdateThumb()
+  end)
   function scroll:Fill(items, fill)
-    local width = self:GetWidth() - 20
+    local width = self.innerWidth or math.max(1, self:GetWidth() - 20)
     child:SetWidth(width)
     -- rows are frames and frames are never freed: never build more than this
     if #items > 200 then local cut = {} for i = 1, 200 do cut[i] = items[i] end items = cut end
@@ -841,7 +858,7 @@ function Window.init(callbacks)
   win:SetScript("OnSizeChanged", function()
     if win.views.game:IsShown() then win.views.game.board:Layout() end
     if win.views.setup:IsShown() then win.views.setup:LayoutGrid() end
-    if win.views.options:IsShown() then win.views.options:Refresh() end
+    -- the lists (lobby, history, options) follow the width on their own
   end)
 
   -- The sheet: a modal card over the window for one square.

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Version shown on the Options tab and in the minimap tooltip, with a note on the Options tab when a newer release is around.
+- Resizing the window: the History and Games lists now widen with it, and the Options rows no longer lose their hints and buttons.
 
 ## v0.1.1 (2026-10-09)
 
