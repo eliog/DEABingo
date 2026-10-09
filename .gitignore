@@ -23,3 +23,6 @@ SavedVariables/
 
 .DS_Store
 *.log
+
+# personal client helpers (link/unlink the beta client), not part of the addon
+local/
