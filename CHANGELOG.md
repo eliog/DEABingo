@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.3 (2026-10-09)
 
 - Standings: each player on two lines, the whole name (Forever names are two words) then the meter and the CALLER flag, so rows no longer collide (#40).
 - Hover a player in the standings to see their grid as dots, like the chip's: called squares lit, a winning line brighter. Positions only, never their square text (#41).
