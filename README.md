@@ -54,7 +54,7 @@ The repo root is the addon folder; `DEABingo.toc` lives here.
     Media/            crest textures, fonts (OFL)
     Libs/             embedded libraries, fetched, not committed
     tests/            busted specs, fixtures from the web game, a headless client smoke
-    scripts/          test.sh, fetch-libs.sh, link-beta.sh
+    scripts/          test.sh, fetch-libs.sh, link-beta.sh, unlink-beta.sh
     docs/reviews/     the expert reviews the design came from; PLAN.md is the plan
 
     brew install luajit luarocks
@@ -63,6 +63,13 @@ The repo root is the addon folder; `DEABingo.toc` lives here.
     scripts/fetch-libs.sh        # LibStub, CallbackHandler, AceComm, LibDataBroker, LibDBIcon
     scripts/test.sh              # busted under LuaJIT, then the headless client smoke
     scripts/link-beta.sh         # symlinks the repo into the beta client's AddOns
+    scripts/unlink-beta.sh       # removes that symlink again
+
+A symlinked checkout reports its version as `dev` (the TOC's `@project-version@` is only
+filled in by the packager) and never takes part in version comparisons. To run the released
+build on your own client, unlink, install DEA Bingo from the CurseForge app and restart the
+client; to go back, uninstall it in the app, link again and restart. Never leave both: the
+app may follow the symlink when it updates.
 
 In game, `/dea help` lists the chat-box commands; `/dea debug` prints every message sent
 and received; `/dea probe` prints what the client says about names.
