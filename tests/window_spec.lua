@@ -143,3 +143,25 @@ describe("footer one-liners", function()
     assert.are.equal("Give the game a title.", win.footer.text:GetText())
   end)
 end)
+
+describe("standings rows", function()
+  it("give the name its own line, with the meter and flag beneath", function()
+    local win = Window.init(app)
+    local row = win.views.game.standings.list.rows[1]
+    if not row then
+      win.views.game.standings.list:Fill({ {} }, function() end)
+      row = win.views.game.standings.list.rows[1]
+    end
+    assert.are.equal(38, row:GetHeight())
+    -- the name anchors to the row's top and right edge, not to the flag
+    local nameRight
+    for _, pt in ipairs(row.name.__points) do if pt[1] == "RIGHT" then nameRight = pt end end
+    assert.is_truthy(nameRight, "name has no RIGHT anchor")
+    assert.are.equal(-56, nameRight.x)
+    -- the meter sits on the bottom line and the flag follows it
+    local meterPt = row.meter.__points[1]
+    assert.are.equal("BOTTOMLEFT", meterPt[1])
+    local flagPt = row.flag.__points[1]
+    assert.are.equal(row.meter, flagPt.rel)
+  end)
+end)

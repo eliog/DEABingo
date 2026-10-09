@@ -41,6 +41,15 @@ local function newWidget(kind, name)
       elseif key == "GetScript" then return function(s, ev) return s.__scripts and s.__scripts[ev] end
       elseif key == "SetFont" then return function() return true end
       elseif key == "SetFontObject" or key == "SetScrollChild" then return function() end
+      -- anchors are kept so layout specs can read them: every SetPoint form
+      -- lands as { point, rel = frame|nil, relPoint = ..., x = ..., y = ... }
+      elseif key == "SetPoint" then return function(s, point, a, b, c, d)
+        local pt = { point, x = 0, y = 0 }
+        if type(a) == "table" then pt.rel = a; pt.relPoint = b; pt.x = c or 0; pt.y = d or 0
+        elseif type(a) == "number" then pt.x = a; pt.y = b or 0 end
+        s.__points[#s.__points + 1] = pt
+      end
+      elseif key == "ClearAllPoints" then return function(s) s.__points = {} end
       elseif key:match("^Set") or key:match("^Register") or key:match("^Enable") or key:match("^Start") or key:match("^Stop")
           or key:match("^Clear") or key:match("^Add") or key == "Raise" or key == "Lower" then
         return function() end

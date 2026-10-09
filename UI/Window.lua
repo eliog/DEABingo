@@ -264,13 +264,16 @@ local function buildGame(f)
   g.standings.head:SetText("STANDINGS")
   g.standings.count = W.text(g.standings, W.fonts().small, "inkFaint", "RIGHT")
   g.standings.count:SetPoint("TOPRIGHT", -10, -8)
-  g.standings.list = scrollList(g.standings, 22, function(parent)
+  -- Two lines a player: the whole name (Forever names are two words) with
+  -- the bingo time at the right, then the meter and the CALLER flag under it.
+  g.standings.list = scrollList(g.standings, 38, function(parent)
     local row = CreateFrame("Button", nil, parent)
-    row.rank = W.text(row, W.fonts().bodyBold, "gold", "RIGHT"); row.rank:SetPoint("LEFT", 0, 0); row.rank:SetWidth(18)
-    row.name = W.text(row, W.fonts().body, "ink"); row.name:SetPoint("LEFT", 24, 0); row.name:SetPoint("RIGHT", -162, 0)   -- clear of the CALLER flag
-    row.meter = W.meter(row); row.meter:SetPoint("RIGHT", -56, 0)
-    row.time = W.text(row, W.fonts().small, "fel", "RIGHT"); row.time:SetPoint("RIGHT", -2, 0); row.time:SetWidth(50)
-    row.flag = W.text(row, W.fonts().eyebrow, "inkFaint", "RIGHT"); row.flag:SetPoint("RIGHT", row.meter, "LEFT", -6, 0); row.flag:SetWidth(50)
+    row.rank = W.text(row, W.fonts().bodyBold, "gold", "RIGHT"); row.rank:SetPoint("TOPLEFT", 0, -5); row.rank:SetWidth(18)
+    row.name = W.text(row, W.fonts().body, "ink"); row.name:SetPoint("TOPLEFT", 24, -5); row.name:SetPoint("RIGHT", -56, 0)
+    row.name:SetWordWrap(false)
+    row.time = W.text(row, W.fonts().small, "fel", "RIGHT"); row.time:SetPoint("TOPRIGHT", -2, -6); row.time:SetWidth(50)
+    row.meter = W.meter(row); row.meter:SetPoint("BOTTOMLEFT", 24, 7)
+    row.flag = W.text(row, W.fonts().eyebrow, "inkFaint"); row.flag:SetPoint("LEFT", row.meter, "RIGHT", 10, 0); row.flag:SetWidth(60)
     row:RegisterForClicks("RightButtonUp")
     row:SetScript("OnClick", function(self)
       local v = win.currentView
