@@ -210,3 +210,32 @@ describe("hover card on a standings row", function()
     assert.is_false(g.peek:IsShown())
   end)
 end)
+
+describe("clicking a square", function()
+  local win, calls
+  setup(function() win = Window.init(app) end)
+  before_each(function()
+    calls = {}
+    app.call = function(idx, undo) calls[#calls + 1] = { idx = idx, undo = undo } end
+  end)
+  teardown(function() app.call = nil end)
+
+  it("calls or undoes at once for a caller, with no sheet", function()
+    win.currentView = { canCall = true, state = "open", called = { [4] = true }, calls = {} }
+    win.views.game.board.onCellClick(3, "LeftButton", false)
+    win.views.game.board.onCellClick(4, "LeftButton", false)
+    assert.are.same({ { idx = 3, undo = false }, { idx = 4, undo = true } }, calls)
+    assert.is_false(win.sheetFrame:IsShown())
+  end)
+
+  it("opens the read-only sheet for anyone else", function()
+    win.currentView = { canCall = false, state = "open", called = {}, calls = {}, items = { "First", "Second" } }
+    win.views.game.board.onCellClick(1, "LeftButton", false)
+    assert.are.equal(0, #calls)
+    assert.is_true(win.sheetFrame:IsShown())
+    assert.are.equal("Second", win.sheetFrame.card.phrase:GetText())
+    assert.are.equal("SQUARE", win.sheetFrame.card.eyebrow:GetText())
+    assert.is_nil(win.sheetFrame.card.confirm)
+    win.sheetFrame:Hide()
+  end)
+end)

@@ -94,8 +94,9 @@ local function newCell(board, position)
         local when
         for _, call in ipairs(v.calls) do if call.idx == self.item then when = call.t end end
         GameTooltip:AddLine("Called at " .. W.clock(when), 0.56, 0.85, 0.29)
+        if v.canCall then GameTooltip:AddLine("Click to undo", 0.64, 0.58, 0.67) end
       elseif v.canCall then
-        GameTooltip:AddLine("Ctrl-click to call", 0.64, 0.58, 0.67)
+        GameTooltip:AddLine("Click to call", 0.64, 0.58, 0.67)
       end
       GameTooltip:Show()
     end

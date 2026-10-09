@@ -191,12 +191,22 @@ for _, c in ipairs(clients) do
   Chip.update(v); Chip.flash()
   -- hover + click a cell
   local cell = Window.frame().views.game.board.cells[1]
-  cell.__scripts.OnEnter(cell); cell.__scripts.OnLeave(cell); cell.__scripts.OnClick(cell, "LeftButton")
-  -- the sheet opened; confirm it, then open and cancel another
   local sh = Window.frame().sheetFrame
-  assert(sh.__shown, "sheet did not open on click")
-  sh.card.confirm.__scripts.OnClick(sh.card.confirm); pump()
-  Window.sheet(cell.item); sh.card.cancel.__scripts.OnClick(sh.card.cancel)
+  local was = App.currentView().called[cell.item] == true
+  cell.__scripts.OnEnter(cell); cell.__scripts.OnLeave(cell); cell.__scripts.OnClick(cell, "LeftButton")
+  if App.currentView().canCall then
+    -- #42: a caller's click acts at once, no sheet; the next click undoes it
+    assert(not sh.__shown, c.name .. ": sheet opened for a caller's click")
+    pump()
+    assert((App.currentView().called[cell.item] == true) ~= was, c.name .. ": click did not toggle the call")
+    cell.__scripts.OnClick(cell, "LeftButton"); pump()
+    assert((App.currentView().called[cell.item] == true) == was, c.name .. ": second click did not toggle it back")
+  else
+    -- a reader's click opens the sheet with the text and a Close button
+    assert(sh.__shown, c.name .. ": sheet did not open for a reader's click")
+    sh.card.cancel.__scripts.OnClick(sh.card.cancel)
+  end
+  Window.sheet(cell.item); assert(sh.__shown); sh.card.cancel.__scripts.OnClick(sh.card.cancel)
   -- #33: scale changes re-thickness hairlines without error; reduced motion stops the flash
   c.ns.W.rescale()
   App.ui.setOption("reducedMotion", true)

@@ -13,9 +13,10 @@ Made for the Drip Enforcement Agency, and it works for any guild or group.
   anywhere, or whoever is grouped with you), fill the 24 squares by pasting a list or
   starting from a previous game, and open it.
 - **Join a game** from the toast that appears when someone opens one, or from the Games tab.
-- **Calling**: the host, and anyone the host lets call, clicks a square and confirms. Clicking
-  a called square undoes it, and an undo leaves no trace. There is also an alphabetical
-  caller list with a filter under the calls panel.
+- **Calling**: the host, and anyone the host lets call, clicks a square to call it. Clicking
+  a called square undoes it, and an undo leaves no trace; nothing asks for confirmation,
+  since any call can be undone and redone. There is also an alphabetical caller list with
+  a filter under the calls panel.
 - **Five in a row wins.** The night continues past the first bingo; winners are ranked by time.
 - **The chip** at the top of the screen keeps the score while the window is closed. Nothing
   pops or makes a sound during combat.

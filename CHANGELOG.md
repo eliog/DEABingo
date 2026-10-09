@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Standings: each player on two lines, the whole name (Forever names are two words) then the meter and the CALLER flag, so rows no longer collide (#40).
+- Hover a player in the standings to see their grid as dots, like the chip's: called squares lit, a winning line brighter. Positions only, never their square text (#41).
+- Calling: a caller's click calls the square, a click on a called square undoes it, with no confirmation; any call can be undone and redone. Others still click a square to read its full text (#42).
+
 ## v0.1.2 (2026-10-09)
 
 - Version shown on the Options tab and in the minimap tooltip, with a note on the Options tab when a newer release is around.
