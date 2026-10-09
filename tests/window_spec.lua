@@ -4,7 +4,7 @@ stub.install()
 require("tests.widget_stub").install()
 
 local ns = {}
-for _, file in ipairs({ "Core/Logic.lua", "Core/Codec.lua", "Core/View.lua", "UI/Theme.lua", "UI/Widgets.lua", "UI/Board.lua", "UI/Window.lua" }) do
+for _, file in ipairs({ "Core/Logic.lua", "Core/Codec.lua", "Core/View.lua", "Core/Quips.lua", "UI/Theme.lua", "UI/Widgets.lua", "UI/Board.lua", "UI/Window.lua" }) do
   assert(loadfile(file))("DEABingo", ns)
 end
 local Window = ns.Window
@@ -106,5 +106,40 @@ describe("version on the options tab", function()
   it("shows nothing when the host gives no version", function()
     Window.refresh()
     assert.are.equal("", win.views.options.version:GetText())
+  end)
+end)
+
+describe("footer one-liners", function()
+  local win, Quips
+  setup(function()
+    win = Window.init(app)
+    Quips = ns.Quips
+    Window.show("options")
+  end)
+
+  local function isQuip(text)
+    for _, q in ipairs(Quips.LIST) do if q == text then return true end end
+    return false
+  end
+
+  it("shows one on the Options tab", function()
+    assert.is_true(isQuip(win.footer.text:GetText()), "footer shows: " .. tostring(win.footer.text:GetText()))
+  end)
+
+  it("changes to another after the interval, and not before", function()
+    local first = win.footer.text:GetText()
+    win.footer.__scripts.OnUpdate(win.footer, Quips.EVERY - 1)
+    assert.are.equal(first, win.footer.text:GetText())
+    win.footer.__scripts.OnUpdate(win.footer, 1)
+    local second = win.footer.text:GetText()
+    assert.is_true(isQuip(second))
+    assert.are_not.equal(first, second)
+  end)
+
+  it("leaves the footer alone once a view has its own text", function()
+    win.footer:Quip(false)
+    win.footer.text:SetText("Give the game a title.")
+    win.footer.__scripts.OnUpdate(win.footer, Quips.EVERY + 1)
+    assert.are.equal("Give the game a title.", win.footer.text:GetText())
   end)
 end)

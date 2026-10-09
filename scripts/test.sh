@@ -21,5 +21,8 @@ summary="$(luajit "$BUSTED" "$@" 2>&1)" || { echo "$summary" | tail -40; exit 1;
 echo "$summary" | tail -1
 # a run that reports no results at all is a broken runner, not a pass
 echo "$summary" | grep -q "successes" || { echo "busted produced no summary; is the launcher right?" >&2; exit 1; }
+# the footer one-liner that names the test count must name this run's
+count="$(echo "$summary" | tail -1 | sed -n 's/^\([0-9][0-9]*\) successes.*/\1/p')"
+grep -q "has $count tests for this addon" Core/Quips.lua || { echo "Core/Quips.lua names a test count other than $count; update the line" >&2; exit 1; }
 out="$(luajit tests/client_smoke.lua 2>&1)" || { echo "$out" | tail -8; echo "client smoke FAILED"; exit 1; }
 echo "$out" | tail -1

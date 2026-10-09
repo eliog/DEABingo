@@ -8,7 +8,7 @@
 ]]
 
 local ADDON, ns = ...
-local Logic, Theme, W, Board, View = ns.Logic, ns.Theme, ns.W, ns.Board, ns.View
+local Logic, Theme, W, Board, View, Quips = ns.Logic, ns.Theme, ns.W, ns.Board, ns.View, ns.Quips
 
 local Window = {}
 ns.Window = Window
@@ -204,6 +204,24 @@ local function buildFooter(f)
   b.action = W.button(b, "", nil, { width = 130, height = 26 })
   b.action:SetPoint("RIGHT", -(PAD + 24), 0)   -- room for the resize grip
   b.action:Hide()
+  -- The one-liners: on while a view has nothing of its own to say in the
+  -- footer. The first shows at once, then another every Quips.EVERY seconds.
+  b.quip = nil
+  b.elapsed = 0
+  function b:ShowQuip()
+    self.quip = Quips.next(self.quip)
+    self.elapsed = 0
+    self.text:SetText(Quips.LIST[self.quip] or "")
+  end
+  function b:Quip(on)
+    if on then self:ShowQuip() else self.quipping = nil; return end
+    self.quipping = true
+  end
+  b:SetScript("OnUpdate", function(self, elapsed)
+    if not self.quipping then return end
+    self.elapsed = self.elapsed + (elapsed or 0)
+    if self.elapsed >= Quips.EVERY then self:ShowQuip() end
+  end)
   return b
 end
 
@@ -1003,7 +1021,7 @@ local function renderLobby()
     row.button:SetLabel(g.mine and (g.state == "drafting" and "Continue" or "Open") or (g.joined and "Open" or "Join"))
   end)
   if #rows == 0 then l.empty:Show() else l.empty:Hide() end
-  win.footer.text:SetText("")
+  win.footer:Quip(true)
   win.footer.action:Show()
   win.footer.action:SetLabel("Start a game")
   win.footer.action:SetEnabledState(true)
@@ -1011,6 +1029,7 @@ local function renderLobby()
 end
 
 local function renderSetup()
+  win.footer:Quip(false)
   local s = win.views.setup
   win.header.title:SetText("New game")
   win.header.status:SetText("")
@@ -1033,6 +1052,7 @@ local function renderSetup()
 end
 
 local function renderGame(v)
+  win.footer:Quip(false)
   local g = win.views.game
   win.currentView = v
   win.header.title:SetText(Logic.escape(v.title))
@@ -1157,7 +1177,7 @@ local function renderHistory()
     row.meta:SetText(Logic.escape(table.concat(bits, "  ·  ")))
   end)
   if #rows == 0 then h.empty:Show() else h.empty:Hide() end
-  win.footer.text:SetText("Finished games stay readable here, newest first.")
+  win.footer:Quip(true)
   win.footer.action:Hide()
 end
 
@@ -1165,7 +1185,7 @@ local function renderOptions()
   win.header.title:SetText("Options")
   win.header.status:SetText("")
   win.views.options:Refresh()
-  win.footer.text:SetText("")
+  win.footer:Quip(true)
   win.footer.action:Hide()
 end
 

@@ -42,7 +42,7 @@ end
 
 package.path = "./?.lua;" .. package.path
 require("tests.widget_stub").install()
-local files = { "Core/Logic.lua", "Core/Codec.lua", "Core/Host.lua", "Core/Mirror.lua", "Core/Net.lua", "Core/Store.lua", "Core/View.lua", "Core/Presets.lua", "Core/Compat.lua", "UI/Theme.lua", "UI/Widgets.lua", "UI/Board.lua", "UI/Window.lua", "UI/Chip.lua", "UI/Toast.lua", "Core/Init.lua" }
+local files = { "Core/Logic.lua", "Core/Codec.lua", "Core/Host.lua", "Core/Mirror.lua", "Core/Net.lua", "Core/Store.lua", "Core/View.lua", "Core/Presets.lua", "Core/Compat.lua", "Core/Quips.lua", "UI/Theme.lua", "UI/Widgets.lua", "UI/Board.lua", "UI/Window.lua", "UI/Chip.lua", "UI/Toast.lua", "Core/Init.lua" }
 
 local function boot(myName, seedDB)
   local first = { Alpha = "Dea", Beta = "Dea" }
