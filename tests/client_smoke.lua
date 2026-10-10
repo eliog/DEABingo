@@ -159,6 +159,27 @@ end
 
 run(alpha, "status")
 run(alpha, "new Tuesday MC")
+-- #72: our own hello replayed under another character's real name must not become our identity
+do
+  current = alpha.name
+  alpha.ns.App.mirror:hello()
+  alpha.ns.App.net:tick()   -- a hello leaves the queue on the next tick
+  local hi
+  for _, m in ipairs(inbox) do if m.text:find("\31HI\31", 1, true) then hi = m.text end end
+  assert(hi, "no hello on the wire")
+  pump()
+  local before = alpha.ns.App.myName
+  local gid = alpha.ns.App.current
+  local owner = alpha.ns.App.hosts[gid].record.owner
+  local hadRosterKey = alpha.ns.App.hosts[gid].record.roster[owner] ~= nil   -- a draft has no roster yet
+  for _, impostor in ipairs({ "Deaone", "Dea Onex", "Dea", "Dea One Two" }) do
+    alpha.handler("DEABINGO", hi, "GUILD", impostor); pump()
+    assert(alpha.ns.App.myName == before, "became " .. tostring(alpha.ns.App.myName) .. " after a replay by " .. impostor)
+  end
+  assert(alpha.ns.App.hosts[gid].record.owner == owner, "hosted ownership changed by a replay")
+  assert((alpha.ns.App.hosts[gid].record.roster[owner] ~= nil) == hadRosterKey, "roster key changed by a replay")
+  assert(alpha.ns.App.chardb.me == before, "saved identity changed by a replay")
+end
 run(alpha, "item 3 Someone forgets the buff")
 run(alpha, "item 4 Fake |cff00ff00link|r here")   -- a pipe is legal text; it must render literally
 run(alpha, "open")

@@ -52,7 +52,7 @@ function Hub:addClient(name, opts)
     me = opts.thinksItIs or name,     -- what the client believes; the hub always stamps `name`
     learnMe = function(real)
       -- the same rule App.learnMe applies: only a name for this character
-      if not require("Core.Logic").sameCharacter(real, opts.displayName or name) then client.refused = real; return end
+      if not require("Core.Logic").sameIdentity(real, opts.displayName or name) then client.refused = real; return end
       client.learned = real
       client.net.deps.me = real
       client.mirror.deps.me = real

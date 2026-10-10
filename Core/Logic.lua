@@ -327,6 +327,20 @@ function Logic.sameCharacter(a, b)
   return long:sub(1, #short) == short and long:sub(#short + 1, #short + 1) == " "
 end
 
+-- Is the name the server stamped on a message THIS character, beyond doubt?
+-- Realm-blind and case-blind, nothing else: spaces stay ("Dea One" is not
+-- "Deaone"), and a first name alone proves nothing ("Dea" is not "Dea Two",
+-- nor "Dea One"). This is the test for anything that may change who we are:
+-- the hello nonce is public, so a replayed hello arrives under a stranger's
+-- real name, and that name must be ours exactly or be refused. A client
+-- that only knows its first name learns nothing until it knows more.
+function Logic.sameIdentity(a, b)
+  local na = Logic.normalizeCharName(Logic.stripRealm(a)):lower()
+  local nb = Logic.normalizeCharName(Logic.stripRealm(b)):lower()
+  if na == "" or nb == "" then return false end
+  return na == nb
+end
+
 -- Addon versions: "v0.1.1", "0.1.1-beta1". A development build ("dev",
 -- "@project-version@") parses to nil and is never compared.
 function Logic.parseVersion(s)

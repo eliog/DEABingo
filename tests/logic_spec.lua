@@ -211,6 +211,25 @@ describe("text", function()
     assert.is_false(Logic.sameCharacter("Dea", "Deanna One"))
   end)
 
+  it("accepts a server-stamped name as our identity only when it is ours exactly", function()
+    -- realm and case do not matter
+    assert.is_true(Logic.sameIdentity("Dea One-ClassicBetaPvE2", "Dea One"))
+    assert.is_true(Logic.sameIdentity("dea one", "Dea One-Two"))
+    assert.is_true(Logic.sameIdentity("Thalgrim-Pagle", "Thalgrim"))
+    -- spaces do: a different character can own the squashed spelling
+    assert.is_false(Logic.sameIdentity("Deaone", "Dea One"))
+    assert.is_false(Logic.sameIdentity("Dea One", "Deaone-Two"))
+    -- a first name alone proves nothing, in either direction
+    assert.is_false(Logic.sameIdentity("Dea Two", "Dea"))
+    assert.is_false(Logic.sameIdentity("Dea One", "Dea"))
+    assert.is_false(Logic.sameIdentity("Dea", "Dea One"))
+    -- and the prefixes sameCharacter already refuses stay refused
+    assert.is_false(Logic.sameIdentity("Dea Onex", "Dea One"))
+    assert.is_false(Logic.sameIdentity("Chadwick", "Chad"))
+    assert.is_false(Logic.sameIdentity("", "Dea One"))
+    assert.is_false(Logic.sameIdentity(nil, "Dea One"))
+  end)
+
   it("escapes the pipe so chat and FontStrings cannot be hijacked", function()
     assert.are.equal("||cff00ff00fake||r", Logic.escape("|cff00ff00fake|r"))
     assert.are.equal("||Hitem:1||h[x]||h", Logic.escape("|Hitem:1|h[x]|h"))

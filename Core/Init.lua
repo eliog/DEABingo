@@ -83,9 +83,11 @@ function App.learnMe(name)
   local old = App.myName
   if name == old then return end
   -- The nonce that marks our hello is public, so a replayed hello arrives
-  -- under a stranger's name. Only a name for THIS character may be learned.
+  -- under a stranger's name. Only a name that IS this character may be
+  -- learned: exact, not merely similar. sameCharacter's tolerance for a
+  -- missing surname is for our own saved records, not for this.
   local mine = displayName("player")
-  if not mine or not Logic.sameCharacter(name, mine) then
+  if not mine or not Logic.sameIdentity(name, mine) then
     debug_(("refused to become %s (I am %s)"):format(tostring(name), tostring(mine)))
     return
   end

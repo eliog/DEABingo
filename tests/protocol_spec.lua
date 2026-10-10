@@ -1063,6 +1063,20 @@ describe("item cache", function()
 end)
 
 describe("identity", function()
+  it("learns nothing from an echo while the client only knows its first name", function()
+    local hub = Hub.new()
+    -- the client's name API gave "Dea" alone; the server knows this character as "Dea One"
+    local c = hub:addClient("Dea One-Two", { guild = "DEA", thinksItIs = "Dea-Two", displayName = "Dea" })
+    local other = hub:addClient("Dea Two-Two", { guild = "DEA" })
+    c.mirror:hello(); hub:flush()
+    assert.are.equal("Dea-Two", c.net.deps.me, "a first name alone was enough to learn a surname")
+    assert.are.equal("Dea One-Two", c.refused)
+    -- and certainly not from a stranger who shares the first name
+    other.net.deps.transport.send(c.sent[1].payload, "GUILD"); hub:flush()
+    assert.are.equal("Dea-Two", c.net.deps.me)
+    assert.are.equal("Dea Two-Two", c.refused)
+  end)
+
   it("refuses a replayed hello from a single-name character whose name extends ours", function()
     local hub = Hub.new()
     local c = hub:addClient("Chad-Pagle", { guild = "DEA" })
@@ -1104,6 +1118,12 @@ describe("identity", function()
     hub:flush()
     assert.are.equal("Dea One-Two", c.net.deps.me)
     assert.are.equal("Dea Onex-Two", c.refused)
+    -- so is the one who owns our name with the space squashed
+    hub:addClient("Deaone-Two", { guild = "DEA", group = "raid1" })
+    hub.clients["Deaone-Two"].net.deps.transport.send(replay, "GUILD")
+    hub:flush()
+    assert.are.equal("Dea One-Two", c.net.deps.me)
+    assert.are.equal("Deaone-Two", c.refused)
     -- and a genuine echo that arrives too late teaches nothing
     local late = hub:addClient("Late One-Two", { guild = "DEA", group = "raid1", thinksItIs = "Late-One" })
     late.mirror:hello()
