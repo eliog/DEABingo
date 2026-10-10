@@ -16,12 +16,14 @@ ns.Window = Window
 -- Below this the 24 edit boxes of the setup grid shrink past legibility.
 Window.MIN_W, Window.MIN_H = 720, 560
 -- On the game tab the window may shrink to the board alone: the rail hides
--- below the full minimum width and the width may go on down to this.
-Window.BOARD_MIN_W = 400
+-- below the full minimum width and the size may go on down to this. The
+-- other tabs (the setup grid above all) need the full minimum.
+Window.BOARD_MIN_W, Window.BOARD_MIN_H = 400, 440
 Window.RAIL_HIDE_W = Window.MIN_W
 
-function Window.minWidthFor(view)
-  return view == "game" and Window.BOARD_MIN_W or Window.MIN_W
+function Window.minSizeFor(view)
+  if view == "game" then return Window.BOARD_MIN_W, Window.BOARD_MIN_H end
+  return Window.MIN_W, Window.MIN_H
 end
 
 local RAIL = 290
@@ -903,9 +905,8 @@ function Window.init(callbacks)
   -- Manual sizing: the grip tracks the cursor itself, so the window grows
   -- only right and down from its pinned top-left, whatever it was anchored
   -- to and whatever the UI scale.
-  local MIN_H = Window.MIN_H
   win.grip:SetScript("OnMouseDown", function(self)
-    local MIN_W = Window.minWidthFor(win.view)
+    local MIN_W, MIN_H = Window.minSizeFor(win.view)
     local left, top = win:GetLeft(), win:GetTop()
     if left and top then
       win:ClearAllPoints()
@@ -1257,14 +1258,15 @@ local function renderOptions()
   win.footer.action:Hide()
 end
 
--- The minimum width follows the view: the game tab may shrink to the board,
--- every other tab needs the full width, so leaving the game tab from a
--- narrow window widens it.
+-- The minimum size follows the view: the game tab may shrink to the board,
+-- every other tab needs the full size, so leaving the game tab from a
+-- small window grows it.
 function Window.applyBounds()
-  local minW = Window.minWidthFor(win.view)
-  if win.SetResizeBounds then win:SetResizeBounds(minW, Window.MIN_H) end
-  local w = win:GetWidth()
+  local minW, minH = Window.minSizeFor(win.view)
+  if win.SetResizeBounds then win:SetResizeBounds(minW, minH) end
+  local w, h = win:GetWidth(), win:GetHeight()
   if w and w < minW then win:SetWidth(minW) end
+  if h and h < minH then win:SetHeight(minH) end
 end
 
 function Window.refresh()

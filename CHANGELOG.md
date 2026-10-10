@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The game tab can also shrink in height, to 440; the other tabs keep the full minimum and the window grows back on leaving the game tab (#61).
+
 ## v0.1.4 (2026-10-09)
 
 - Addon messages sent while the Forever client is in a chat lockdown (encounters) wait in a queue and go out, in order, when it lifts; only the newest heartbeat per game is kept. `/dea status` says whether the lockdown is on and how many messages wait (#43).
