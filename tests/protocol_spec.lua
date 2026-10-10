@@ -1030,6 +1030,37 @@ describe("hostile input", function()
     assert.is_truthy(follower.mirror.games[gid].calls[3])
   end)
 
+  it("sends a held group message on the channel the group has by the time it leaves", function()
+    local hub, host, _, names = guildNight(2, "R")
+    joinAll(hub, host, names)
+    local owner = hub.clients[names[1]]
+    owner.locked = true
+    assert(host:call(1))
+    -- the raid disbanded during the fight: the held call has nowhere to go
+    owner.group = nil
+    owner.locked = false
+    local sentBefore = #owner.sent
+    hub:advance(1)
+    assert.are.equal(sentBefore, #owner.sent)
+    assert.are.equal(0, #owner.net.queue)
+    local logged = false
+    for _, line in ipairs(hub.log) do if line:find("no group channel, held message dropped", 1, true) then logged = true end end
+    assert.is_true(logged, "the drop was not logged")
+    -- and a raid that became a party during the fight gets the held message on PARTY
+    owner.group = "raid1"
+    owner.locked = true
+    assert(host:call(2))
+    owner.net.deps.groupChannel = function() return "PARTY" end
+    owner.locked = false
+    hub:advance(1)
+    local channel
+    for _, m in ipairs(owner.sent) do
+      local msg = Codec.decode(m.payload)
+      if msg and msg.type == "CL" and msg.f.idx == 2 then channel = m.channel end
+    end
+    assert.are.equal("PARTY", channel)
+  end)
+
   it("caps what it holds, dropping the oldest", function()
     local hub, _, _, names = guildNight(1)
     local owner = hub.clients[names[1]]

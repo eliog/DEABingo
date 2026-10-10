@@ -64,24 +64,36 @@ function Net:detachHost(gid)
   self.hosts[gid] = nil
 end
 
--- The send function handed to hosts and the mirror. Resolves "GROUP" to the
--- right channel at send time and drops quietly when no channel exists.
-function Net:send(payload, channel, target)
-  local dist = channel
+-- "GROUP" means whichever of RAID, PARTY or INSTANCE_CHAT we are in right
+-- now; GUILD needs a guild. Checked when the message actually goes out, so
+-- a group that changed while a message was held does not swallow it.
+function Net:resolve(channel, target)
   if channel == "GROUP" then
-    dist = self.deps.groupChannel()
-    if not dist then self:log("no group channel, dropped " .. payload:sub(1, 12)); return false end
+    local dist = self.deps.groupChannel()
+    if not dist then return nil, "no group channel" end
+    return dist
   elseif channel == "GUILD" then
-    if not self.deps.inGuild() then self:log("not in a guild, dropped " .. payload:sub(1, 12)); return false end
+    if not self.deps.inGuild() then return nil, "not in a guild" end
+    return "GUILD"
   elseif channel == "WHISPER" then
-    if not Codec.isName(target) then return false end
-  else
+    if not Codec.isName(target) then return nil, "bad whisper target" end
+    return "WHISPER"
+  end
+  return nil, "unknown channel"
+end
+
+-- The send function handed to hosts and the mirror. Drops quietly when the
+-- channel cannot be reached.
+function Net:send(payload, channel, target)
+  local dist, why = self:resolve(channel, target)
+  if not dist then
+    if why ~= "unknown channel" and why ~= "bad whisper target" then self:log(why .. ", dropped " .. payload:sub(1, 12)) end
     return false
   end
   local msgType, gid = payload:match("^%d+\31(%u%u)\31([^\31]*)")
   local prio = PRIORITY[msgType] or "NORMAL"
   if self.deps.inLockdown and self.deps.inLockdown() then
-    self:enqueue({ payload = payload, dist = dist, target = target, prio = prio, type = msgType, gid = gid })
+    self:enqueue({ payload = payload, channel = channel, dist = dist, target = target, prio = prio, type = msgType, gid = gid })
     return true
   end
   -- Anything still held leaves first: a send in the second between the
@@ -122,14 +134,20 @@ function Net:flushQueue()
   self.queue = {}
   local sent = 0
   for _, m in ipairs(q) do
-    -- one bad target must not take the rest of the held messages with it
-    local okay, err = pcall(self.deps.transport.send, m.payload, m.dist, m.target, m.prio)
-    if okay then
-      sent = sent + 1
-      self.stats.sent = self.stats.sent + 1
-    else
+    local dist, why = self:resolve(m.channel, m.target)
+    if not dist then
       self.stats.dropped = self.stats.dropped + 1
-      self:log("held message failed to send: " .. tostring(err))
+      self:log(why .. ", held message dropped " .. m.payload:sub(1, 12))
+    else
+      -- one bad target must not take the rest of the held messages with it
+      local okay, err = pcall(self.deps.transport.send, m.payload, dist, m.target, m.prio)
+      if okay then
+        sent = sent + 1
+        self.stats.sent = self.stats.sent + 1
+      else
+        self.stats.dropped = self.stats.dropped + 1
+        self:log("held message failed to send: " .. tostring(err))
+      end
     end
   end
   self:log(("lockdown over, sent %d held messages"):format(sent))

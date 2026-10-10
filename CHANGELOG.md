@@ -6,6 +6,7 @@
 - A send made in the second after a lockdown lifts no longer overtakes the messages still held (#45).
 - The queue keeps the newest heartbeat, hello and sync request per destination, and no longer lets a whispered heartbeat evict the broadcast one (#46).
 - One held message failing to send no longer loses the ones behind it (#47).
+- A held group message goes out on the channel the group has when it leaves, not the one it had when it was held (#48).
 
 ## v0.1.3 (2026-10-09)
 
