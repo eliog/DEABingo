@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.5-beta1 (2026-10-09)
 
 - The game tab can also shrink in height, to 440; the other tabs keep the full minimum and the window grows back on leaving the game tab (#61).
 
