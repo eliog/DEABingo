@@ -50,6 +50,19 @@ describe("joined games", function()
   end)
 end)
 
+describe("history", function()
+  it("keeps one entry per game, the latest, however often a close is archived", function()
+    local s = Store.new({}, {})
+    s:addHistory({ gid = "g1", title = "Night", closedAt = 1, roster = {}, calls = {} })
+    s:addHistory({ gid = "g1", title = "Night", closedAt = 2, roster = {}, calls = { [4] = 1 } })
+    s:addHistory({ gid = "g2", title = "Other", closedAt = 3, roster = {}, calls = {} })
+    assert.are.equal(2, #s.db.history)
+    local g1
+    for _, e in ipairs(s.db.history) do if e.gid == "g1" then g1 = e end end
+    assert.is_truthy(g1.calls[4])
+  end)
+end)
+
 describe("item library", function()
   it("keeps the host a set came from", function()
     local s = Store.new({}, {})

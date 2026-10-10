@@ -29,6 +29,23 @@ local function guildNight(n, audience)
   return hub, host, owner, names
 end
 
+-- Tick the clock `seconds` times, dropping every message `drop(m)` rejects.
+-- Hub:advance has no filter; this is the lossy wire.
+local function advanceDropping(hub, seconds, drop)
+  for _ = 1, seconds do
+    hub.time = hub.time + 1
+    for _, c in pairs(hub.clients) do c.net:tick() end
+    hub:flush(function(m) return not drop(m) end)
+  end
+end
+local function ofType(...)
+  local types = { ... }
+  return function(m)
+    for _, t in ipairs(types) do if m.payload:find("\31" .. t .. "\31", 1, true) then return true end end
+    return false
+  end
+end
+
 local function joinAll(hub, host, names)
   for i = 2, #names do
     local c = hub.clients[names[i]]
@@ -455,6 +472,75 @@ describe("resilience", function()
     assert.is_truthy(g.calls[4], "the missed call never arrived")
     assert.are.equal(host.record.seq, g.seq)
     assert.are.equal(1, closes[#closes], "the archive was not rewritten with the final call")
+  end)
+
+  -- A follower that lost the last call and the close, hears the closed card,
+  -- and then loses part of the recovery exchange too. `lose` drops traffic
+  -- during the exchange; the follower must still end up with the final state.
+  local function closedRecovery(players, lose)
+    local hub, host, _, names = guildNight(players)
+    joinAll(hub, host, names)
+    local f = hub.clients[names[2]]
+    local gid = host.record.gid
+    local g = f.mirror.games[gid]
+    local closes = {}
+    f.mirror.deps.onEvent = function(kind)
+      if kind == "close" then local n = 0 for _ in pairs(g.calls) do n = n + 1 end closes[#closes + 1] = n end
+    end
+    local endOfGame = ofType("CL", "CX")
+    host:call(4); hub:flush(function(m) return not endOfGame(m) end)
+    host:close(); hub:flush(function(m) return not (endOfGame(m) or lose(m)) end)
+    assert.are.equal("closed", g.state)
+    assert.is_nil(g.calls[4])
+    -- the first exchange is lossy, then the wire is clean
+    advanceDropping(hub, Host.SYNC_DELAY + 1, lose)
+    assert.is_nil(g.calls[4], "the lossy exchange recovered the call; the test lost nothing")
+    hub:advance(Mirror.GAP_WAIT * 4 + Host.SYNC_DELAY * 2 + 2)
+    assert.is_truthy(g.calls[4], "the missed call never arrived")
+    assert.are.equal(host.record.seq, g.seq)
+    assert.are.equal(1, closes[#closes], "the archive was not rewritten with the final call")
+    assert.is_nil(g.finalSeq, "still asking after the final state arrived")
+    return hub, host, f
+  end
+
+  it("keeps asking a closed host for the final state when the snapshot was lost", function()
+    local sn = 0
+    closedRecovery(2, function(m) if m.payload:find("\31SN\31", 1, true) then sn = sn + 1; return true end return false end)
+    assert.is_true(sn >= 1, "no snapshot was ever lost")
+  end)
+
+  it("keeps asking a closed host for the final state when the request itself was lost", function()
+    closedRecovery(2, ofType("SQ"))
+  end)
+
+  it("recovers a closed game's final state when one part of a multipart snapshot was lost", function()
+    local rows = Host.SNAPSHOT_ROWS
+    Host.SNAPSHOT_ROWS = 2
+    finally(function() Host.SNAPSHOT_ROWS = rows end)
+    local lostPart = false
+    closedRecovery(4, function(m)
+      if lostPart or not m.payload:find("\31SN\31", 1, true) then return false end
+      local msg = Codec.decode(m.payload)
+      if msg and msg.f.of == 2 and msg.f.part == 2 then lostPart = true; return true end
+      return false
+    end)
+    assert.is_true(lostPart, "no snapshot part was ever lost")
+  end)
+
+  it("stops asking a closed host once its retention window has passed", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local f = hub.clients[names[2]]
+    local g = f.mirror.games[host.record.gid]
+    local endOfGame = ofType("CL", "CX")
+    host:call(4); hub:flush(function(m) return not endOfGame(m) end)
+    host:close(); hub:flush(function(m) return not endOfGame(m) end)
+    assert.is_truthy(g.finalSeq)
+    advanceDropping(hub, Mirror.FINAL_RECOVERY + Mirror.GAP_WAIT_MAX + 2, ofType("SN"))
+    assert.is_nil(g.finalSeq)
+    local before = #f.sent
+    advanceDropping(hub, Mirror.GAP_WAIT_MAX + 2, ofType("SN"))
+    assert.are.equal(before, #f.sent, "still asking after the retention window")
   end)
 
   it("emits the close event when a closed snapshot is what tells it the game ended", function()

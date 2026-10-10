@@ -30,6 +30,7 @@ Mirror.CARD_TTL = 90         -- seconds without a heartbeat before "host away"
                              -- Chad triggers this from the kitchen
 Mirror.GAP_WAIT = 3          -- seconds to wait for an out-of-order delta before asking
 Mirror.GAP_WAIT_MAX = 60     -- the back-off ceiling while the gap persists
+Mirror.FINAL_RECOVERY = 1800 -- seconds a follower keeps asking a closed host for the final state (its CLOSED_ANSWERS)
                              -- about how long Chad lasts before opening the addon he said he would not install
 Mirror.SYNC_COOLDOWN = 10    -- seconds between sync requests per game
 Mirror.JOIN_WINDOW = 30      -- a WE is honoured only this long after our own JN
@@ -466,7 +467,13 @@ function Mirror:onCard(gid, f, sender)
       if self.deps.onEvent then self.deps.onEvent("close", { gid = gid }) end
     end
     if f.seq > g.seq then
-      -- a closed card is the host's last broadcast: worth one ask regardless of the cooldown
+      -- A closed card is the host's last broadcast, so the final state it
+      -- advertises is owed: ask now regardless of the cooldown, and keep
+      -- asking (tick) until a snapshot reaches it. No delta is buffered to
+      -- drive the gap clock when the last call and the close were both lost.
+      if f.state == "closed" then
+        g.finalSeq, g.finalGen, g.finalSince, g.finalWait = f.seq, f.gen, self.deps.now(), nil
+      end
       self:requestSync(gid, f.state == "closed")
     elseif f.seq == g.seq and f.callMask ~= Codec.callMask(g.calls) then
       self:requestSync(gid)
@@ -556,6 +563,18 @@ function Mirror:tick()
       if now - req.at >= Mirror.REQUEST_TIMEOUT then
         g.outstanding[idx] = nil
         if self.deps.onEvent then self.deps.onEvent("callLost", { gid = gid, idx = idx, undo = req.undo }) end
+      end
+    end
+    -- The final state of a closed game, still owed: ask again with the
+    -- same back-off. The host is silent by design now, so "away" means
+    -- nothing here; what ends the asking is the state arriving or the
+    -- host's retention window passing.
+    if g.finalSeq then
+      if g.gen > g.finalGen or (g.gen == g.finalGen and g.seq >= g.finalSeq) or now - g.finalSince > Mirror.FINAL_RECOVERY then
+        g.finalSeq, g.finalGen, g.finalSince, g.finalWait = nil, nil, nil, nil
+      elseif now - g.lastSyncReq >= (g.finalWait or Mirror.GAP_WAIT) then
+        self:requestSync(gid, true)
+        g.finalWait = math.min(Mirror.GAP_WAIT_MAX, (g.finalWait or Mirror.GAP_WAIT) * 2)
       end
     end
     -- A gap means a call went missing: ask, then back off, and never
