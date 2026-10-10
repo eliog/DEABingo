@@ -1087,6 +1087,22 @@ describe("hostile input", function()
     assert.is_true(follower.mirror.cards[gid].away)
   end)
 
+  it("honours the welcome to a join request that waited out a lockdown", function()
+    local hub, host, _, names = guildNight(2)
+    hub:flush()
+    local joiner = hub.clients[names[2]]
+    local gid = host.record.gid
+    joiner.locked = true
+    assert(joiner.mirror:join(gid))
+    hub:advance(Mirror.JOIN_WINDOW * 2)   -- the fight outlasts the join window
+    assert.is_nil(host.record.roster[names[2]], "the join request got through the lockdown")
+    joiner.locked = false
+    hub:advance(Host.SYNC_DELAY + 2)
+    assert.is_truthy(host.record.roster[names[2]], "the host never heard the held join request")
+    local g = joiner.mirror.games[gid]
+    assert.is_true(g ~= nil and g.joined == true, "the welcome was ignored as stale")
+  end)
+
   it("caps what it holds, dropping the oldest", function()
     local hub, _, _, names = guildNight(1)
     local owner = hub.clients[names[1]]

@@ -144,6 +144,7 @@ function Net:flushQueue()
       if okay then
         sent = sent + 1
         self.stats.sent = self.stats.sent + 1
+        if self.mirror and self.mirror.onReleased then self.mirror:onReleased(m.type, m.gid, m.target) end
       else
         self.stats.dropped = self.stats.dropped + 1
         self:log("held message failed to send: " .. tostring(err))

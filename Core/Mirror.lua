@@ -462,6 +462,12 @@ function Mirror:noteNewer(ver)
   self:log("a newer DEA Bingo is in use (protocol " .. tostring(ver) .. "); update to play in that game")
 end
 
+-- A held message just left the queue. A join request's welcome window
+-- starts from now, not from when the click happened during the fight.
+function Mirror:onReleased(msgType, gid)
+  if msgType == "JN" and self.joining[gid] then self.joining[gid] = self.deps.now() end
+end
+
 function Mirror:tick()
   local now = self.deps.now()
   -- Silence during an encounter is the chat lockdown, not the host: nothing
@@ -477,6 +483,7 @@ function Mirror:tick()
       for _, req in pairs(g.outstanding or {}) do req.at = now end
       if g.gapSince then g.gapSince = now end
     end
+    for gid in pairs(self.joining) do self.joining[gid] = now end
     self.lockedAt = nil
   end
   local changed = false
