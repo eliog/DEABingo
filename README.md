@@ -78,6 +78,66 @@ authority taken from the server-stamped sender. Followers mirror the deltas and 
 snapshot when they fall behind. Boards are dealt by the host and stored, never derived.
 Details are in `PLAN.md`.
 
+The modules, top to bottom. Everything in `Core/` is pure Lua with its dependencies
+injected, so the whole protocol runs under busted with a fake clock and a loopback wire;
+`Core/Init.lua` is the one file that touches the client.
+
+```mermaid
+flowchart TB
+  subgraph UI["UI/ — renders a view model, calls back into App for every action"]
+    Window["Window<br/>lobby · setup · game"]
+    Board["Board<br/>the 5x5 grid"]
+    Chip["Chip<br/>the minimised strip"]
+    Toast["Toast<br/>notices"]
+    Theme["Theme · Widgets"]
+  end
+  Init["Core/Init — App<br/>wires everything, slash commands, events, SavedVariables, timers"]
+  subgraph Core["Core/ — pure, tested"]
+    View["View<br/>one view model from a Host record or a Mirror game"]
+    Host["Host<br/>the owner's client: the only writer"]
+    Mirror["Mirror<br/>everyone else: lobby cards, joined games, deltas, snapshots"]
+    Net["Net<br/>one prefix, routing, rate limits, sender trust"]
+    Codec["Codec<br/>wire format, every field validated"]
+    Logic["Logic<br/>boards, bingo, names, text cleaning"]
+    Store["Store<br/>saved records, validated on load"]
+  end
+  Chat["AceComm → GUILD · RAID · WHISPER"]
+
+  Window --> Board & Theme
+  UI -- "actions" --> Init
+  Init -- "view model" --> View
+  View --> Host & Mirror
+  Init --> Host & Mirror & Store
+  Host & Mirror --> Codec & Logic
+  Host & Mirror -- "send" --> Net
+  Net -- "route by game: owner or replica" --> Host & Mirror
+  Net <--> Chat
+  Host & Mirror -- "persist" --> Store
+```
+
+One game on the wire. The host broadcasts; a follower whispers the host when it needs
+something, and the host answers by whisper or, for a burst of requests, by one broadcast.
+
+```mermaid
+sequenceDiagram
+  participant H as Host (owner)
+  participant F as Follower (mirror)
+  participant L as Lobby (mirror, not joined)
+  H->>L: GA card, IT items (broadcast, repeated as a heartbeat)
+  L->>H: JN join (whisper)
+  H-->>L: WE welcome: your board (whisper)
+  Note over L: L is now a follower
+  L->>H: SQ sync request (whisper)
+  H-->>L: SN snapshot: roster, calls, standings
+  H->>F: CL call / UN undo / JD join / GR grant (broadcast, sequenced)
+  Note over F: a missing sequence number starts the gap clock
+  F->>H: SQ sync request (whisper, backed off)
+  H-->>F: SN snapshot
+  F->>H: CQ call request (granted caller, whisper)
+  H->>F: CL call (broadcast)
+  H->>F: TR hand over → F promotes · CX close → History
+```
+
 ### Releasing
 
 Add a `## vX.Y.Z (date)` section to the top of `CHANGELOG.md`, decide whether this release must
