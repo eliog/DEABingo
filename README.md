@@ -76,7 +76,8 @@ The owner's client is the host and the only writer. State travels as sequenced a
 messages on the guild or group channel, one prefix, with every field validated and
 authority taken from the server-stamped sender. Followers mirror the deltas and ask for a
 snapshot when they fall behind. Boards are dealt by the host and stored, never derived.
-Details are in `PLAN.md`.
+Every message, rule and timer is in [`docs/PROTOCOL.md`](docs/PROTOCOL.md); the design
+history is in `PLAN.md`.
 
 The modules, top to bottom. Everything in `Core/` is pure Lua with its dependencies
 injected, so the whole protocol runs under busted with a fake clock and a loopback wire;
