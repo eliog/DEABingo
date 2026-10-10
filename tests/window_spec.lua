@@ -239,3 +239,20 @@ describe("clicking a square", function()
     win.sheetFrame:Hide()
   end)
 end)
+
+describe("combat", function()
+  local win
+  setup(function() win = Window.init(app) end)
+  after_each(function() Window.setCombat(false) end)
+
+  it("leaves the header clear of the scrim, so close and drag still work", function()
+    Window.setCombat(true)
+    local sc = win.combatScrim
+    assert.is_true(sc:IsShown())
+    local top
+    for _, pt in ipairs(sc.__points) do if pt[1] == "TOPLEFT" then top = pt end end
+    assert.is_truthy(top, "scrim has no TOPLEFT anchor")
+    assert.are.equal(win.header, top.rel)
+    assert.are.equal("BOTTOMLEFT", top.relPoint)
+  end)
+end)

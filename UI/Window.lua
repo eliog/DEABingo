@@ -1000,12 +1000,15 @@ function Window.frame() return win end
 
 -- In combat the window dims and takes no clicks. EnableMouse(false) on a
 -- parent does not reach its children, so a mouse-enabled scrim does it.
+-- The scrim starts below the header: the close button and the title-bar
+-- drag stay usable, so a window left open can still be moved or shut.
 function Window.setCombat(inCombat)
   if not win then return end
   win:SetAlpha(inCombat and 0.4 or 1)
   if not win.combatScrim then
     local sc = CreateFrame("Button", nil, win)
-    sc:SetAllPoints(win)
+    sc:SetPoint("TOPLEFT", win.header, "BOTTOMLEFT")
+    sc:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT")
     sc:SetFrameLevel((win:GetFrameLevel() or 0) + 40)
     sc:EnableMouse(true)
     sc:RegisterForClicks("AnyUp")

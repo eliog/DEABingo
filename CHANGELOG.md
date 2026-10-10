@@ -11,6 +11,7 @@
 - A join request held through a lockdown still gets its welcome accepted when it finally goes out (#49).
 - A sender or guild roster name the client hands over as a secret value no longer reaches the debug tap or the roster match (#52).
 - The window built by a reload mid-fight comes up dimmed and unclickable, like one that saw the fight start (#53).
+- In combat the window's header stays live: the close button and the title-bar drag work while the rest is dimmed (#54).
 
 ## v0.1.3 (2026-10-09)
 
