@@ -960,6 +960,44 @@ describe("hostile input", function()
     assert.are.equal(0, #owner.net.queue)
   end)
 
+  it("keeps the newest heartbeat per destination, and a whispered one beside the broadcast", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner = hub.clients[names[1]]
+    local gid = host.record.gid
+    owner.locked = true
+    hub:advance(Host.HEARTBEAT + 1)   -- a broadcast heartbeat falls due
+    assert(host:call(1))
+    hub:advance(Host.HEARTBEAT + 1)   -- a second, newer one
+    host:heartbeat(names[2])          -- and one whispered to a player who said hello
+    local broadcast, whispered = {}, {}
+    for _, m in ipairs(owner.net.queue) do
+      if m.type == "GA" then
+        if m.target then whispered[#whispered + 1] = m else broadcast[#broadcast + 1] = m end
+      end
+    end
+    assert.are.equal(1, #broadcast, "stale broadcast heartbeats kept, or the broadcast evicted")
+    assert.are.equal(1, #whispered)
+    local card = Codec.decode(broadcast[1].payload)
+    assert.are.equal(host.record.seq, card.f.seq, "the kept heartbeat is not the newest")
+    assert.is_true(Codec.maskHas(card.f.callMask, 1), "the kept heartbeat predates the call")
+  end)
+
+  it("collapses repeated sync requests to the newest", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local follower = hub.clients[names[2]]
+    local gid = host.record.gid
+    follower.locked = true
+    follower.mirror:requestSync(gid, true)
+    follower.mirror.games[gid].seq = follower.mirror.games[gid].seq + 1   -- pretend we moved on
+    follower.mirror:requestSync(gid, true)
+    local sqs = 0
+    for _, m in ipairs(follower.net.queue) do if m.type == "SQ" then sqs = sqs + 1 end end
+    assert.are.equal(1, sqs)
+    assert.are.equal(follower.mirror.games[gid].seq, Codec.decode(follower.net.queue[#follower.net.queue].payload).f.haveSeq)
+  end)
+
   it("caps what it holds, dropping the oldest", function()
     local hub, _, _, names = guildNight(1)
     local owner = hub.clients[names[1]]

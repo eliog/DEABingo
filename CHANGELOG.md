@@ -4,6 +4,7 @@
 
 - Addon messages sent while the Forever client is in a chat lockdown (encounters) wait in a queue and go out, in order, when it lifts; only the newest heartbeat per game is kept. `/dea status` says whether the lockdown is on and how many messages wait (#43).
 - A send made in the second after a lockdown lifts no longer overtakes the messages still held (#45).
+- The queue keeps the newest heartbeat, hello and sync request per destination, and no longer lets a whispered heartbeat evict the broadcast one (#46).
 
 ## v0.1.3 (2026-10-09)
 
