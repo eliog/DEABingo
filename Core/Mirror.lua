@@ -9,8 +9,8 @@
     deps.channels()                     list of broadcast channels available now ("GUILD", "GROUP")
     deps.persist(gid, state)            optional, called after every change to a joined game
     deps.onCards()                      optional, called when the lobby cards change
-    deps.lookupItems(hash)              optional, returns a cached {title, items} for a hash
-    deps.storeItems(hash, title, items) optional, called when a host's items are heard before joining
+    deps.lookupItems(hash)              optional, returns a saved {title, items, host} for a hash
+    deps.storeItems(hash, title, items, host)  optional, called when a host's items are heard before joining
     deps.inLockdown()                   optional: true while the client refuses addon messages (Forever encounters)
     deps.onEvent(kind, info)            optional: "call" {gid, idx, winners}, "undo" {gid, idx, revoked}, "join" {gid, name},
                                         "newGame" {gid, title, owner, state} the first time a host's card is heard
@@ -191,10 +191,14 @@ end
 function Mirror:requestItems(gid)
   local g = self.games[gid]
   if not g or not g.itemsHash then return end
-  -- A set heard from another host is not this game's, whatever its hash says.
+  -- A set heard from another host is not this game's, whatever its hash
+  -- says: the hash is a short checksum, and a colliding set is easy to
+  -- make. Only a set known to come from this game's owner fills the board;
+  -- anything else, including a saved set with no host on record, is asked
+  -- for from the owner.
   local set = self.itemCache[g.itemsHash]
-  if set and set.host ~= g.owner then set = nil end
   if not set and self.deps.lookupItems then set = self.deps.lookupItems(g.itemsHash) end
+  if set and set.host ~= g.owner then set = nil end
   if set and genuine(g.itemsHash, set.title, set.items) then
     g.items = set.items
     if set.title and set.title ~= "" then g.title = set.title end
@@ -344,7 +348,7 @@ function Mirror:handle(msg, sender)
       local card = self.cards[gid]
       if card and card.host == sender and genuine(f.itemsHash, f.title, f.items) then
         self.itemCache[f.itemsHash] = { title = f.title, items = f.items, host = sender }
-        if self.deps.storeItems then self.deps.storeItems(f.itemsHash, f.title, f.items) end
+        if self.deps.storeItems then self.deps.storeItems(f.itemsHash, f.title, f.items, sender) end
       end
     end
     return
@@ -357,6 +361,8 @@ function Mirror:handle(msg, sender)
     -- hash must still be the content's own.
     if not genuine(f.itemsHash, f.title, f.items) then return end
     g.itemsHash, g.items, g.title = f.itemsHash, f.items, f.title
+    -- the owner's own word on its set: the library records it as the owner's
+    if self.deps.storeItems then self.deps.storeItems(f.itemsHash, f.title, f.items, sender) end
     self:persist(gid)
     if self.deps.onEvent then self.deps.onEvent("items", { gid = gid }) end
   elseif t == "SN" then

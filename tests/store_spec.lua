@@ -50,6 +50,17 @@ describe("joined games", function()
   end)
 end)
 
+describe("item library", function()
+  it("keeps the host a set came from", function()
+    local s = Store.new({}, {})
+    s:saveItemSet("ab12cd", "Night", items(), 1700000000, "Owner-Pagle")
+    assert.are.equal("Owner-Pagle", s.db.itemSets.ab12cd.host)
+    s:saveItemSet("ab12cd", "Night", items(), nil, "Other-Pagle")   -- the latest word on who sent it
+    assert.are.equal("Other-Pagle", s.db.itemSets.ab12cd.host)
+    assert.are.equal(1700000000, s.db.itemSets.ab12cd.usedAt)
+  end)
+end)
+
 describe("saved records", function()
   it("accepts a complete record", function()
     assert.is_true(Store.isRecord(goodRecord()))

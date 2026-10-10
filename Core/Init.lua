@@ -509,7 +509,7 @@ function App.setup()
     persist = function(gid, g) App.store:saveJoined(gid, g); App.uiRefresh() end,
     onCards = function() App.uiRefresh() end,
     lookupItems = function(hash) local set = App.store.db.itemSets[hash]; if type(set) == "table" then return set end end,
-    storeItems = function(hash, title, items) App.store:saveItemSet(hash, title, items) end,
+    storeItems = function(hash, title, items, host) App.store:saveItemSet(hash, title, items, nil, host) end,
     onEvent = function(kind, info) App.onGameEvent(kind, info) end,
   })
   App.net.mirror = App.mirror
@@ -666,7 +666,7 @@ function App.createGame(opts)
     local okay, err2 = host:open()
     if not okay then return nil, err2 end
   end
-  App.store:saveItemSet(record.itemsHash, record.title, record.items, GetServerTime())
+  App.store:saveItemSet(record.itemsHash, record.title, record.items, GetServerTime(), record.owner)
   App.uiRefresh()
   return record
 end

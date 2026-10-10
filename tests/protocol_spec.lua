@@ -1045,11 +1045,75 @@ describe("item cache", function()
     assert.are.same(host.record.items, f.mirror.games[host.record.gid].items)
   end)
 
+  -- Two valid sets with the same djb2 checksum: "Az" and "BY" leave the
+  -- rolling hash in the same state (65*33+122 == 66*33+89).
+  local function colliding(tail)
+    local t = { "Square 1 " .. tail }
+    for i = 2, 24 do t[i] = "Square " .. i end
+    return t
+  end
+
+  it("does not fill a board from a saved set another host supplied, even with a colliding hash", function()
+    local Store = require("Core.Store")
+    assert.are.equal(Codec.itemsHash("Night", colliding("Az")), Codec.itemsHash("Night", colliding("BY")))
+    local hub = Hub.new()
+    local names = { "Owner-Pagle", "Victim-Pagle", "Other-Pagle", "Joiner-Pagle" }
+    for _, n in ipairs(names) do hub:addClient(n, { guild = "DEA", group = "raid1" }) end
+    local store = Store.new({}, {})
+    local victim = hub.clients[names[2]]
+    victim.mirror.deps.lookupItems = function(hash) return store.db.itemSets[hash] end
+    victim.mirror.deps.storeItems = function(hash, title, set, from) store:saveItemSet(hash, title, set, nil, from) end
+    -- the legitimate game, frozen by a first join
+    local host = hub.clients[names[1]]:host({ title = "Night", items = colliding("Az"), audience = "G" })
+    assert(host:open()); hub:flush()
+    joinAll(hub, host, { names[1], names[4] })
+    -- another host opens a game whose set collides; the victim hears its card and its items
+    local other = hub.clients[names[3]]:host({ title = "Night", items = colliding("BY"), audience = "G" })
+    assert(other:open()); hub:flush()
+    joinAll(hub, other, { names[3], names[4] })   -- its freeze rebroadcasts the items
+    local gid = host.record.gid
+    assert.is_truthy(store.db.itemSets[host.record.itemsHash], "the colliding set never reached the library")
+    assert.are.equal(names[3], store.db.itemSets[host.record.itemsHash].host)
+    -- joining the legitimate game: the saved set is another host's, so the owner is asked
+    local before = #victim.sent
+    assert(victim.mirror:join(gid)); hub:flush(); hub:advance(Host.SYNC_DELAY + 1)
+    local asked = false
+    for i = before + 1, #victim.sent do if victim.sent[i].payload:find("\31IQ\31", 1, true) and victim.sent[i].target == names[1] then asked = true end end
+    assert.is_true(asked, "the owner was not asked for its items")
+    assert.are.same(colliding("Az"), victim.mirror.games[gid].items)
+    assert.are.equal(names[1], store.db.itemSets[host.record.itemsHash].host, "the library did not learn the owner's set")
+    hub:advance(60)
+    assert.are.same(colliding("Az"), victim.mirror.games[gid].items)
+    -- a fresh mirror on the same library: the set is the owner's now, so no whisper is needed
+    hub:removeClient(names[2])
+    local again = hub:addClient(names[2], { guild = "DEA", group = "raid1" })
+    again.mirror.deps.lookupItems = function(hash) return store.db.itemSets[hash] end
+    again.mirror:hello(); hub:flush()
+    assert(again.mirror:join(gid)); hub:flush(); hub:advance(Host.SYNC_DELAY + 1)
+    assert.are.same(colliding("Az"), again.mirror.games[gid].items)
+    for _, m in ipairs(again.sent) do assert.is_nil(m.payload:find("\31IQ\31", 1, true), "asked despite a trusted saved set") end
+  end)
+
+  it("asks the owner rather than trust a saved set with no host on record", function()
+    local hub, host, _, names = guildNight(3)
+    joinAll(hub, host, { names[1], names[2] })
+    hub:removeClient(names[3])
+    local f = hub:addClient(names[3], { guild = "DEA", group = "raid1" })
+    -- a library entry from before provenance was kept
+    f.mirror.deps.lookupItems = function() return { title = "Tuesday MC", items = host.record.items } end
+    f.mirror:hello(); hub:flush()
+    assert(f.mirror:join(host.record.gid)); hub:flush(); hub:advance(Host.SYNC_DELAY + 1)
+    local asked = false
+    for _, m in ipairs(f.sent) do if m.payload:find("\31IQ\31", 1, true) then asked = true end end
+    assert.is_true(asked)
+    assert.are.same(host.record.items, f.mirror.games[host.record.gid].items)
+  end)
+
   it("fills items from the local cache instead of asking the host again", function()
     local hub, host, _, names = guildNight(2)
     joinAll(hub, host, names)
     local f = hub.clients[names[2]]
-    local cache = { [host.record.itemsHash] = { title = "Tuesday MC", items = host.record.items } }
+    local cache = { [host.record.itemsHash] = { title = "Tuesday MC", items = host.record.items, host = names[1] } }
     hub:removeClient(names[2])
     local again = hub:addClient(names[2], { guild = "DEA", group = "raid1" })
     again.mirror.deps.lookupItems = function(hash) return cache[hash] end

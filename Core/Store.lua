@@ -165,13 +165,17 @@ function Store:saveJoined(gid, game)
     gid = gid, owner = game.owner, gen = game.gen, seq = game.seq, state = game.state,
     title = game.title, itemsHash = game.itemsHash, board = game.myBoard, audience = game.audience,
   }
-  if game.items and game.itemsHash then self:saveItemSet(game.itemsHash, game.title, game.items) end
+  if game.items and game.itemsHash then self:saveItemSet(game.itemsHash, game.title, game.items, nil, game.owner) end
 end
 
-function Store:saveItemSet(hash, title, items, usedAt)
+-- `host` is who the set is known to belong to: the server-stamped sender of
+-- the broadcast, or the owner of the game it was saved from. A game fills
+-- its board from the library only when the library's host is that game's
+-- owner; the hash is a short checksum and proves consistency, not authorship.
+function Store:saveItemSet(hash, title, items, usedAt, host)
   if type(hash) ~= "string" or not Logic.checkItems(items).ok then return end
   local set = self.db.itemSets[hash]
-  self.db.itemSets[hash] = { title = title, items = items, usedAt = usedAt or (set and set.usedAt) or 0 }
+  self.db.itemSets[hash] = { title = title, items = items, usedAt = usedAt or (set and set.usedAt) or 0, host = host }
   -- bounded: drop the least recently used beyond the cap
   local n = 0
   for _ in pairs(self.db.itemSets) do n = n + 1 end
