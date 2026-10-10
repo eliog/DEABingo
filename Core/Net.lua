@@ -294,6 +294,11 @@ function Net:dispatch(payload, channel, sender)
     if host then host:handle(msg, sender) end
     return
   end
+  -- a host that handed its game over listens for the new owner's first card
+  if msg.type == "GA" then
+    local host = self.hosts[msg.gid]
+    if host and host.handedAt then host:handle(msg, sender) end
+  end
   if self.mirror then self.mirror:handle(msg, sender) end
 end
 

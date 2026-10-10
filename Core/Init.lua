@@ -436,6 +436,13 @@ function App.onGameEvent(kind, info)
     App.uiRefresh()   -- the Options tab shows the newer version from now on
     return
   end
+  if kind == "transferLost" then
+    local g = App.mirror.games[info.gid]
+    print_(("could not hand \"%s\" to %s: they never took over. The game has no host until they come back."):format(
+      Logic.escape(g and g.title or info.gid), View.shortName(info.to)))
+    App.uiRefresh()
+    return
+  end
   if kind == "joinLost" then
     App.rejoin[info.gid] = nil
     if not App.mirror.games[info.gid] then

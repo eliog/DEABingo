@@ -1002,6 +1002,70 @@ describe("transfer", function()
     assert.is_nil(host.record.roster["Late-Pagle"], "the old host still admits players")
   end)
 
+  it("sends the transfer again until the new host's first card, and refuses to call meanwhile", function()
+    local hub, host, owner, names = guildNight(3)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local newHost, watcher = hub.clients[names[2]], hub.clients[names[3]]
+    local promoted = 0
+    newHost.mirror.deps.onEvent = function(kind, info) if kind == "promote" and info.gid == gid then promoted = promoted + 1 end end
+    -- the first TR is lost on the wire; everything else flows
+    local lostTR = false
+    local loseFirstTR = function(m)
+      if not lostTR and m.payload:find("\31TR\31", 1, true) then lostTR = true; return true end
+      return false
+    end
+    assert.is_true(host:transfer(names[2]))
+    advanceDropping(hub, Host.TRANSFER_RETRY - 1, loseFirstTR)
+    assert.is_true(lostTR)
+    assert.are.equal(0, promoted)
+    assert.are.equal(names[1], watcher.mirror.games[gid].owner)
+    assert.is_nil(host:call(8), "a handed-over host still calls")
+    hub:advance(2)                                   -- the retry goes out, same seq and gen
+    assert.are.equal(1, promoted, "the resent transfer did not promote the recipient")
+    assert.are.equal(names[2], watcher.mirror.games[gid].owner)
+    assert.are.equal(host.record.gen, watcher.mirror.games[gid].gen)
+    -- a duplicate of the same TR changes nothing
+    local tr
+    for _, m in ipairs(owner.sent) do if m.payload:find("\31TR\31", 1, true) then tr = m.payload end end
+    owner.net.deps.transport.send(tr, "GUILD"); hub:flush()
+    assert.are.equal(1, promoted)
+    assert.are.equal(host.record.gen, watcher.mirror.games[gid].gen)
+    -- the new host takes over; its first card acknowledges the handoff and the retries stop
+    assert.is_truthy(host.pendingTransfer)
+    local record = newHost.mirror:promote(gid)
+    newHost.mirror:forget(gid)
+    local h2 = newHost:restoreHost(record)
+    h2:heartbeat(); hub:flush()
+    assert.is_nil(host.pendingTransfer, "the new owner's card did not acknowledge the handoff")
+    local trs = 0
+    for _, m in ipairs(owner.sent) do if m.payload:find("\31TR\31", 1, true) then trs = trs + 1 end end
+    hub:advance(Host.TRANSFER_RETRY * 8)
+    local after = 0
+    for _, m in ipairs(owner.sent) do if m.payload:find("\31TR\31", 1, true) then after = after + 1 end end
+    assert.are.equal(trs, after, "still resending after the acknowledgement")
+    -- exactly one host writes
+    h2:call(7); hub:flush()
+    assert.is_truthy(watcher.mirror.games[gid].calls[7])
+    assert.is_nil(host:undo(7))
+  end)
+
+  it("gives the handoff up after a few unacknowledged sends and says so", function()
+    local hub, host, owner, names = guildNight(2)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local lost
+    host.deps.onEvent = function(kind, info) if kind == "transferLost" then lost = info end end
+    assert.is_true(host:transfer(names[2]))
+    advanceDropping(hub, Host.TRANSFER_RETRY * 2 ^ Host.TRANSFER_TRIES + 2, ofType("TR"))
+    local trs = 0
+    for _, m in ipairs(owner.sent) do if m.payload:find("\31TR\31", 1, true) then trs = trs + 1 end end
+    assert.are.equal(Host.TRANSFER_TRIES, trs)
+    assert.is_truthy(lost, "nobody was told the handoff was lost")
+    assert.are.equal(gid, lost.gid); assert.are.equal(names[2], lost.to)
+    assert.is_nil(host.pendingTransfer)
+  end)
+
   it("hands the game over: the new host is told, takes over, and the old host's stale messages are ignored", function()
     local hub, host, owner, names = guildNight(4)
     joinAll(hub, host, names)
