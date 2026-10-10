@@ -126,7 +126,8 @@ function App.refreshGuild()
   local n = GetNumGuildMembers() or 0
   for i = 1, n do
     local name = GetGuildRosterInfo(i)
-    local full = App.normalize(name)
+    -- a secret name cannot be read; it is simply not a member we can match
+    local full = not Compat.IsSecret(name) and App.normalize(name) or nil
     if full then guildSet[full] = true end
   end
 end
@@ -1065,7 +1066,7 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
   if event == "CHAT_MSG_ADDON" then
     -- Raw chunk tap, debug only: AceComm reassembles above this, so a lost
     -- or truncated chunk shows up here first.
-    if ns.debug and arg1 == Net.PREFIX and type(arg2) == "string" and not Compat.IsSecret(arg2) then
+    if ns.debug and arg1 == Net.PREFIX and type(arg2) == "string" and not Compat.IsSecret(arg2) and not Compat.IsSecret(arg4) then
       local control = arg2:byte(1)
       local kind = (control == 1 and "first") or (control == 2 and "next") or (control == 3 and "last") or "single"
       debug_(("  raw %s %s %dB %s from %s"):format(tostring(arg3), kind, #arg2, kind == "single" and (arg2:match("^%d+\31(%u%u)") or "?") or "", tostring(arg4)))

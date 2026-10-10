@@ -5,7 +5,9 @@ local chat = {}
 _G.DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) chat[#chat+1] = m; print("  chat> " .. m:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end }
 _G.GetBuildInfo = function() return "1.60.1", "70245", "Oct 1 2026", 16001 end
 _G.C_ChatInfo = { InChatMessagingLockdown = function() return false end }
-_G.issecretvalue = function() return false end
+-- values the client would hand us as secrets during a lockdown; the stub marks them by identity
+_G.secretValues = {}
+_G.issecretvalue = function(v) return secretValues[v] == true end
 _G.C_AddOns = { GetAddOnMetadata = function() return "@project-version@" end }
 _G.strlenutf8 = function(s) local _, n = s:gsub("[^\128-\191]", ""); return n end
 _G.GetTime = function() return 123.456 end
@@ -70,7 +72,7 @@ local function boot(myName, seedDB)
   local function fire(ev, ...) for _, f in ipairs(frames) do if f.events[ev] and f.__scripts and f.__scripts.OnEvent then f.__scripts.OnEvent(f, ev, ...) end end end
   fire("ADDON_LOADED", "DEABingo"); fire("PLAYER_LOGIN"); fire("PLAYER_ENTERING_WORLD")
   assert(ns.App.ready, myName .. " not ready")
-  return { ns = ns, slash = SlashCmdList.DEABINGO, handler = handlers[1], name = first[myName] .. " " .. sur[myName], full = first[myName] .. " " .. sur[myName] .. "-ClassicBetaPvE2" }
+  return { ns = ns, slash = SlashCmdList.DEABINGO, handler = handlers[1], fire = fire, name = first[myName] .. " " .. sur[myName], full = first[myName] .. " " .. sur[myName] .. "-ClassicBetaPvE2" }
 end
 
 -- #16: a game saved under an earlier form of the host's name resumes under the current one
@@ -94,6 +96,24 @@ do
 end
 local beta = boot("Beta")
 local clients = { alpha, beta }
+
+-- #52: a secret sender or roster name never reaches a string function, debug tap included
+do
+  local hidden = "Hidden-ClassicBetaPvE2"
+  secretValues[hidden] = true
+  alpha.ns.debug = true
+  alpha.fire("CHAT_MSG_ADDON", "DEABINGO", "2\31HI\31" .. "0\31", "GUILD", hidden)
+  alpha.fire("CHAT_MSG_ADDON", "DEABINGO", "\001chunk", "GUILD", hidden)
+  alpha.ns.debug = false
+  local realRoster, realCount = _G.GetGuildRosterInfo, _G.GetNumGuildMembers
+  _G.GetGuildRosterInfo = function(i) return ({ hidden, "Dea One", "Dea Two" })[i] end
+  _G.GetNumGuildMembers = function() return 3 end
+  alpha.ns.App.refreshGuild()
+  _G.GetGuildRosterInfo, _G.GetNumGuildMembers = realRoster, realCount
+  assert(alpha.ns.App.isMember(alpha.ns.App.normalize("Dea Two"), "G"), "guild refresh lost the readable names")
+  assert(not alpha.ns.App.isMember(hidden, "G"), "a secret roster name was matched")
+  secretValues[hidden] = nil
+end
 
 local function pump()
   for _ = 1, 20 do
