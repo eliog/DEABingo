@@ -84,6 +84,9 @@ function Net:send(payload, channel, target)
     self:enqueue({ payload = payload, dist = dist, target = target, prio = prio, type = msgType, gid = gid })
     return true
   end
+  -- Anything still held leaves first: a send in the second between the
+  -- lockdown lifting and the next tick must not overtake it.
+  self:flushQueue()
   self.stats.sent = self.stats.sent + 1
   self.deps.transport.send(payload, dist, target, prio)
   return true

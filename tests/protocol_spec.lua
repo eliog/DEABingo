@@ -940,6 +940,26 @@ describe("hostile input", function()
     assert.is_true(seqs[1] < seqs[2], "calls left out of order")
   end)
 
+  it("lets held messages out before a send made just after the lift", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner = hub.clients[names[1]]
+    owner.locked = true
+    assert(host:call(1))
+    owner.locked = false
+    local sentBefore = #owner.sent
+    assert(host:call(2))            -- no tick in between
+    local seqs = {}
+    for i = sentBefore + 1, #owner.sent do
+      local t, seq = owner.sent[i].payload:match("^%d+\31(%u%u)\31[^\31]*\31(%d+)")
+      if t == "CL" then seqs[#seqs + 1] = tonumber(seq) end
+    end
+    assert.are.same({ seqs[1], seqs[2] }, seqs)
+    assert.are.equal(2, #seqs, "the held call did not leave with the new one")
+    assert.is_true(seqs[1] < seqs[2], "the new call overtook the held one")
+    assert.are.equal(0, #owner.net.queue)
+  end)
+
   it("caps what it holds, dropping the oldest", function()
     local hub, _, _, names = guildNight(1)
     local owner = hub.clients[names[1]]
