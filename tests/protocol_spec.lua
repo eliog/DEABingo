@@ -275,6 +275,37 @@ describe("resilience", function()
     assert.are.same({}, follower.mirror.games[gid].pending)
   end)
 
+  it("ignores a snapshot older than the calls it already has", function()
+    local hub, host, owner, names = guildNight(2)
+    joinAll(hub, host, names)
+    local f = hub.clients[names[2]]
+    local gid = host.record.gid
+    -- a snapshot built now, delivered late: BULK after the ALERT calls
+    local stale = Codec.encode("SN", gid, host:snapshot())
+    local staleParts = host:snapshots()
+    host:call(4); hub:flush()
+    host:call(9); hub:flush()
+    local g = f.mirror.games[gid]
+    local seq = g.seq
+    assert.is_truthy(g.calls[4]); assert.is_truthy(g.calls[9])
+    owner.net.deps.transport.send(stale, "WHISPER", names[2])
+    hub:flush()
+    assert.are.equal(seq, g.seq, "the sequence rolled back")
+    assert.is_truthy(g.calls[4], "a call was erased by the stale snapshot")
+    assert.is_truthy(g.calls[9], "a call was erased by the stale snapshot")
+    -- the same snapshot in parts: a stale first part must not start a collection either
+    staleParts[1].of = 2
+    owner.net.deps.transport.send(Codec.encode("SN", gid, staleParts[1]), "WHISPER", names[2])
+    hub:flush()
+    assert.is_nil(g.snapshotParts)
+    -- a later snapshot, or one from a newer generation, is still applied
+    host:call(13); hub:flush()
+    owner.net.deps.transport.send(Codec.encode("SN", gid, host:snapshot()), "WHISPER", names[2])
+    hub:flush()
+    assert.is_truthy(g.calls[13])
+    assert.are.equal(host.record.seq, g.seq)
+  end)
+
   it("answers a burst of sync requests with one broadcast", function()
     local hub, host, owner, names = guildNight(6)
     joinAll(hub, host, names)

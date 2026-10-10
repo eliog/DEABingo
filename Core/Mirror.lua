@@ -357,6 +357,10 @@ function Mirror:handle(msg, sender)
     if self.deps.onEvent then self.deps.onEvent("items", { gid = gid }) end
   elseif t == "SN" then
     if f.gen < g.gen then return end
+    -- Snapshots travel BULK, calls ALERT: an answer to a sync request may
+    -- land after calls made since it was built. Older than what we hold is
+    -- noise, unless a newer generation says so (a promoted host may be behind).
+    if f.gen == g.gen and f.seq < g.seq then return end
     -- Parts of one snapshot share seq; collect them, apply when complete.
     local st = g.snapshotParts
     if not st or st.seq ~= f.seq or st.of ~= f.of then
