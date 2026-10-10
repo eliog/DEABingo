@@ -1103,6 +1103,43 @@ describe("hostile input", function()
     assert.is_true(g ~= nil and g.joined == true, "the welcome was ignored as stale")
   end)
 
+  it("re-holds a message the chat library refused, once, and sends it next", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner, follower = hub.clients[names[1]], hub.clients[names[2]]
+    local gid = host.record.gid
+    -- the lockdown began after the poll: the client refuses the first call once
+    local refusals = 0
+    owner.refuse = function(payload)
+      local msg = Codec.decode(payload)
+      if msg and msg.type == "CL" and msg.f.idx == 1 and refusals == 0 then refusals = refusals + 1; return true end
+      return false
+    end
+    assert(host:call(1))
+    assert.are.equal(1, refusals)
+    assert.are.equal(1, #owner.net.queue, "the refused call was not held")
+    assert.are.equal(1, owner.net.stats.refused)
+    assert.is_nil(follower.mirror.games[gid].calls[1])
+    -- the next send lets it out first, in order
+    assert(host:call(2))
+    assert.are.equal(0, #owner.net.queue)
+    local seqs = {}
+    for _, m in ipairs(owner.sent) do
+      local msg = Codec.decode(m.payload)
+      if msg and msg.type == "CL" then seqs[#seqs + 1] = msg.f.seq end
+    end
+    assert.is_true(#seqs >= 2 and seqs[#seqs - 1] < seqs[#seqs], "the refused call did not leave first")
+    hub:flush()
+    assert.is_truthy(follower.mirror.games[gid].calls[1])
+    assert.is_truthy(follower.mirror.games[gid].calls[2])
+    -- a refusal that is not a lockdown, with none in force, is not re-held
+    owner.refuse = function(payload) local msg = Codec.decode(payload); return msg and msg.type == "CL" and msg.f.idx == 3 end
+    owner.net.deps.lockdownResult = 11
+    local before = #owner.net.queue
+    owner.net:onSendResult({ type = "CL", payload = "x", channel = "GUILD" }, false, 3)   -- 3 = AddonMessageThrottle
+    assert.are.equal(before, #owner.net.queue)
+  end)
+
   it("caps what it holds, dropping the oldest", function()
     local hub, _, _, names = guildNight(1)
     local owner = hub.clients[names[1]]

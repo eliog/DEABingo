@@ -189,10 +189,15 @@ end
 local AceComm = LibStub and LibStub("AceComm-3.0", true)
 
 local transport = {
-  send = function(payload, channel, target, prio)
+  send = function(payload, channel, target, prio, onResult)
     if not AceComm then return end
-    debug_(("-> %s %s %dB %s"):format(channel, target or "", #payload, payload:match("^%d+\31(%u%u)") or "?"))
-    AceComm:SendCommMessage(Net.PREFIX, payload, channel, target, prio)
+    local kind = payload:match("^%d+\31(%u%u)") or "?"
+    debug_(("-> %s %s %dB %s"):format(channel, target or "", #payload, kind))
+    -- AceComm hands the chat library's verdict to this per chunk: (arg, sent, total, result)
+    AceComm:SendCommMessage(Net.PREFIX, payload, channel, target, prio, function(_, sent, _, result)
+      if not sent then debug_(("   refused %s: result %s"):format(kind, tostring(result))) end
+      if onResult then onResult(sent, result) end
+    end)
   end,
 }
 
@@ -485,6 +490,7 @@ function App.setup()
     transport = transport, now = GetServerTime, me = me, log = debug_,
     groupChannel = App.groupChannel, inGuild = App.inGuild, isMember = App.isMember,
     learnMe = App.learnMe, inLockdown = Compat.InChatLockdown,
+    lockdownResult = rawget(_G, "Enum") and Enum.SendAddonMessageResult and Enum.SendAddonMessageResult.AddOnMessageLockdown or nil,
   })
   App.mirror = Mirror.new({
     now = GetServerTime, me = me, log = debug_, addonVersion = Compat.GetAddOnVersion(ADDON),
@@ -1024,7 +1030,7 @@ end
 
 commands.net = function()
   local s = App.net.stats
-  print_(("sent %d, received %d, dropped %d, handler errors %d, held through lockdowns %d (%d waiting now)"):format(s.sent, s.received, s.dropped, s.errors or 0, s.queued or 0, #App.net.queue))
+  print_(("sent %d, received %d, dropped %d, handler errors %d, held through lockdowns %d (%d waiting now), refused by the client %d"):format(s.sent, s.received, s.dropped, s.errors or 0, s.queued or 0, #App.net.queue, s.refused or 0))
 end
 
 commands.sound = function()

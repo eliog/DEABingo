@@ -9,8 +9,10 @@
     - our own echoes are ignored
     - nothing from a message handler ever reaches a protected function
 
-    deps.transport.send(payload, channel, target, prio)   the real or loopback wire
+    deps.transport.send(payload, channel, target, prio, onResult)   the real or loopback wire;
+                             onResult(sent, result) is optional and may fire per chunk
     deps.inLockdown()        optional: true while the client refuses addon messages (Forever encounters)
+    deps.lockdownResult      optional: the client's SendAddonMessageResult code for a lockdown refusal
     deps.now()
     deps.me
     deps.groupChannel()      "INSTANCE_CHAT" | "RAID" | "PARTY" | nil
@@ -30,6 +32,7 @@ ns.Net = Net
 
 Net.PREFIX = "DEABINGO"
 Net.QUEUE_MAX = 200     -- sends held through a lockdown; beyond this the oldest go
+Net.LOCKDOWN_RESULT = 11   -- Enum.SendAddonMessageResult.AddOnMessageLockdown where the client has it
 Net.ECHO_WINDOW = 5     -- seconds after a hello during which its echo may teach us our name
 
 local PRIORITY = { CL = "ALERT", UN = "ALERT", CQ = "ALERT", IT = "BULK", SN = "BULK" }
@@ -47,7 +50,7 @@ function Net.new(deps)
   self.hosts = {}          -- gid -> Host
   self.mirror = nil
   self.buckets = {}        -- sender -> { tokens, at }
-  self.stats = { sent = 0, received = 0, dropped = 0, errors = 0, queued = 0 }
+  self.stats = { sent = 0, received = 0, dropped = 0, errors = 0, queued = 0, refused = 0 }
   self.queue = {}          -- sends held while the client is in a chat lockdown, in order
   return self
 end
@@ -92,16 +95,38 @@ function Net:send(payload, channel, target)
   end
   local msgType, gid = payload:match("^%d+\31(%u%u)\31([^\31]*)")
   local prio = PRIORITY[msgType] or "NORMAL"
+  local m = { payload = payload, channel = channel, dist = dist, target = target, prio = prio, type = msgType, gid = gid }
   if self.deps.inLockdown and self.deps.inLockdown() then
-    self:enqueue({ payload = payload, channel = channel, dist = dist, target = target, prio = prio, type = msgType, gid = gid })
+    self:enqueue(m)
     return true
   end
   -- Anything still held leaves first: a send in the second between the
   -- lockdown lifting and the next tick must not overtake it.
   self:flushQueue()
   self.stats.sent = self.stats.sent + 1
-  self.deps.transport.send(payload, dist, target, prio)
+  self:handOff(m)
   return true
+end
+
+-- Hand one message to the transport, listening for the result: the chat
+-- library tells a callback whether each chunk went, and a lockdown that
+-- began after the poll above, or caught a message the library had already
+-- spooled, shows up there as a refusal. Such a message goes back to the
+-- front of the queue, once.
+function Net:handOff(m)
+  self.deps.transport.send(m.payload, m.dist, m.target, m.prio, function(sent, result) self:onSendResult(m, sent, result) end)
+end
+
+function Net:onSendResult(m, sent, result)
+  if sent ~= false then return end
+  self.stats.refused = self.stats.refused + 1
+  local lockdown = result == (self.deps.lockdownResult or Net.LOCKDOWN_RESULT)
+    or (self.deps.inLockdown and self.deps.inLockdown())
+  if lockdown and not m.requeued then
+    m.requeued = true
+    table.insert(self.queue, 1, m)
+    self:log(("send refused (result %s), holding %s"):format(tostring(result), tostring(m.type)))
+  end
 end
 
 -- The Forever client refuses addon messages during an encounter, so sends
@@ -140,7 +165,8 @@ function Net:flushQueue()
       self:log(why .. ", held message dropped " .. m.payload:sub(1, 12))
     else
       -- one bad target must not take the rest of the held messages with it
-      local okay, err = pcall(self.deps.transport.send, m.payload, dist, m.target, m.prio)
+      m.dist = dist
+      local okay, err = pcall(self.handOff, self, m)
       if okay then
         sent = sent + 1
         self.stats.sent = self.stats.sent + 1

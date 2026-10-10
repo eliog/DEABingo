@@ -34,9 +34,15 @@ function Hub:addClient(name, opts)
   local client = { name = name, guild = opts.guild, group = opts.group, sent = {}, received = {} }
 
   local transport = {
-    send = function(payload, channel, target, prio)
+    send = function(payload, channel, target, prio, onResult)
+      -- client.refuse(payload) -> true models the chat library refusing a send (lockdown result 11)
+      if client.refuse and client.refuse(payload) then
+        if onResult then onResult(false, 11) end
+        return
+      end
       client.sent[#client.sent + 1] = { payload = payload, channel = channel, target = target, prio = prio }
       hub.queue[#hub.queue + 1] = { from = name, payload = payload, channel = channel, target = target }
+      if onResult then onResult(true, 0) end
     end,
   }
   local deps = {
