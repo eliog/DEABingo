@@ -179,18 +179,24 @@ end
 
 -- Fill items from the local cache when this set has been seen before;
 -- otherwise ask the host. Saves the whisper and the first-paint lag.
+-- A set is only what its hash says it is when the hash comes out of the
+-- content. Any name can broadcast any hash; the content is the proof.
+local function genuine(hash, title, items)
+  return type(items) == "table" and #items == Logic.ITEM_COUNT and Codec.itemsHash(title, items) == hash
+end
+
 function Mirror:requestItems(gid)
   local g = self.games[gid]
   if not g or not g.itemsHash then return end
+  -- A set heard from another host is not this game's, whatever its hash says.
   local set = self.itemCache[g.itemsHash]
+  if set and set.host ~= g.owner then set = nil end
   if not set and self.deps.lookupItems then set = self.deps.lookupItems(g.itemsHash) end
-  if set then
-    if type(set.items) == "table" and #set.items == Logic.ITEM_COUNT then
-      g.items = set.items
-      if set.title and set.title ~= "" then g.title = set.title end
-      self:persist(gid)
-      return
-    end
+  if set and genuine(g.itemsHash, set.title, set.items) then
+    g.items = set.items
+    if set.title and set.title ~= "" then g.title = set.title end
+    self:persist(gid)
+    return
   end
   self:emit("IQ", gid, { itemsHash = g.itemsHash }, "WHISPER", g.owner)
 end
@@ -332,8 +338,8 @@ function Mirror:handle(msg, sender)
     -- serves the whole wave.
     if t == "IT" then
       local card = self.cards[gid]
-      if card and card.host == sender then
-        self.itemCache[f.itemsHash] = { title = f.title, items = f.items }
+      if card and card.host == sender and genuine(f.itemsHash, f.title, f.items) then
+        self.itemCache[f.itemsHash] = { title = f.title, items = f.items, host = sender }
         if self.deps.storeItems then self.deps.storeItems(f.itemsHash, f.title, f.items) end
       end
     end
@@ -343,7 +349,9 @@ function Mirror:handle(msg, sender)
   if t == "IT" then
     -- The owner is the only writer, so whatever items they send are the
     -- items. Matching the hash we already hold would drop a legitimate
-    -- change (a retitle rehashes) and start a round of re-requests.
+    -- change (a retitle rehashes) and start a round of re-requests. The
+    -- hash must still be the content's own.
+    if not genuine(f.itemsHash, f.title, f.items) then return end
     g.itemsHash, g.items, g.title = f.itemsHash, f.items, f.title
     self:persist(gid)
     if self.deps.onEvent then self.deps.onEvent("items", { gid = gid }) end

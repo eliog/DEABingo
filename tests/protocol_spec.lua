@@ -854,6 +854,46 @@ describe("new game announcements", function()
 end)
 
 describe("item cache", function()
+  it("ignores another host's squares announced under a legitimate game's hash", function()
+    -- the first join freezes the items and broadcasts them once more; the
+    -- poisoning matters to whoever joins after that
+    local hub, host, _, names = guildNight(4)
+    joinAll(hub, host, { names[1], names[2] })
+    local f = hub.clients[names[4]]
+    local stored = {}
+    f.mirror.deps.storeItems = function(hash, title, set) stored[hash] = { title = title, items = set } end
+    -- a stranger hosts their own game, then announces squares for it under the
+    -- legitimate game's hash; the follower holds a card for both
+    local stranger = hub.clients[names[3]]
+    local own = stranger:host({ title = "Mine", items = items(), audience = "G" })
+    assert(own:open()); hub:flush()
+    local poison = {}
+    for i = 1, 24 do poison[i] = "Poisoned square " .. i end
+    stranger.net:send(Codec.encode("IT", own.record.gid, { itemsHash = host.record.itemsHash, title = "Tuesday MC", items = poison }), "GUILD")
+    hub:flush()
+    -- a later join to the legitimate game must still show its own squares
+    assert(f.mirror:join(host.record.gid)); hub:flush(); hub:advance(Host.SYNC_DELAY + 1)
+    assert.are.same(host.record.items, f.mirror.games[host.record.gid].items)
+    -- and nothing poisoned reached the saved library
+    for hash, set in pairs(stored) do
+      assert.are_not.equal("Poisoned square 1", set.items[1], "poisoned set saved under " .. hash)
+    end
+  end)
+
+  it("does not use a saved set whose content does not match its hash", function()
+    local hub, host, _, names = guildNight(3)
+    joinAll(hub, host, { names[1], names[2] })
+    -- a client that heard no item broadcast: only the saved library could fill its board
+    hub:removeClient(names[3])
+    local f = hub:addClient(names[3], { guild = "DEA", group = "raid1" })
+    local poison = {}
+    for i = 1, 24 do poison[i] = "Poisoned square " .. i end
+    f.mirror.deps.lookupItems = function() return { title = "Tuesday MC", items = poison } end
+    f.mirror:hello(); hub:flush()
+    assert(f.mirror:join(host.record.gid)); hub:flush(); hub:advance(Host.SYNC_DELAY + 1)
+    assert.are.same(host.record.items, f.mirror.games[host.record.gid].items)
+  end)
+
   it("fills items from the local cache instead of asking the host again", function()
     local hub, host, _, names = guildNight(2)
     joinAll(hub, host, names)
