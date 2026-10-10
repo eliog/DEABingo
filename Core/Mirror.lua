@@ -375,10 +375,15 @@ function Mirror:handle(msg, sender)
     if st.count < st.of then return end
     g.snapshotParts = nil
     f.roster = st.rows
-    local wasClosed, hadSeq = g.state == "closed", g.seq
+    local wasClosed, hadSeq, ownerBefore = g.state == "closed", g.seq, g.owner
     self:applySnapshot(g, f)
     if not g.items then self:requestItems(gid) end
     self:persist(gid)
+    -- A snapshot naming us owner is a handoff we could not apply in order:
+    -- the TR sat behind a gap, and the old host answered the gap with this.
+    if g.owner == self.deps.me and ownerBefore ~= self.deps.me and self.deps.onEvent then
+      self.deps.onEvent("promote", { gid = gid })
+    end
     -- A closed snapshot is the end of the game, or the final state of one
     -- we already knew had ended: either way the archive wants it.
     if g.state == "closed" and (not wasClosed or g.seq ~= hadSeq) and self.deps.onEvent then

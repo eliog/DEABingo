@@ -503,6 +503,7 @@ function App.setup()
   })
   App.net.mirror = App.mirror
   App.hosts = {}
+  App.handed = {}   -- gid -> Host object handed over this session, still answering sync requests
   -- Open games resume; games closed within the recovery period come back
   -- silently, to answer followers that missed the end.
   App.store:forgetClosedHosted(GetServerTime() - Host.CLOSED_ANSWERS)
@@ -553,6 +554,13 @@ function App.tick()
       App.net:detachHost(gid)
       App.hosts[gid] = nil
       App.store:forgetHosted(gid)
+    end
+  end
+  -- A handed-over host has answered the recipient's gap long enough.
+  for gid, host in pairs(App.handed) do
+    if now - (host.handedAt or 0) >= Host.HANDOFF_ANSWERS then
+      if App.net.hosts[gid] == host then App.net:detachHost(gid) end
+      App.handed[gid] = nil
     end
   end
   -- Silent rejoin after a reload: as soon as the card is heard, ask for the same board back.
@@ -657,9 +665,12 @@ function App.transferGame(name)
   local okay, err = host:transfer(full)
   if not okay then return nil, err end
   local gid = host.record.gid
-  App.net:detachHost(gid)
+  -- The object stays on the wire a while longer, answering sync requests
+  -- only, so a recipient holding the handoff behind a missed call has a
+  -- source for the gap. App.tick detaches it after HANDOFF_ANSWERS.
   App.hosts[gid] = nil
   App.store:forgetHosted(gid)
+  App.handed[gid] = host
   App.mirror:adopt(host.record, App.me())
   App.uiRefresh()
   return true
@@ -676,6 +687,7 @@ function App.promote(gid)
   end
   App.promotePending[gid] = nil
   local host = Host.restore(record, App.hostDeps())
+  App.handed[gid] = nil   -- handed back to us: the new object replaces the old one on the wire
   App.hosts[gid] = host
   App.net:attachHost(host)
   App.store:saveHosted(record)
@@ -1031,7 +1043,8 @@ end
 -- Development helper: forget every hosted and joined game on this character.
 commands.reset = function()
   for gid in pairs(App.hosts or {}) do App.net:detachHost(gid) end
-  App.hosts = {}
+  for gid in pairs(App.handed or {}) do App.net:detachHost(gid) end
+  App.hosts, App.handed = {}, {}
   App.current = nil
   App.rejoin = {}
   App.store.db.hosted = {}

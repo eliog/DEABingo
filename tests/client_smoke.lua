@@ -198,6 +198,8 @@ do
   local gid = beta.ns.App.current
   assert(gid and beta.ns.App.hosts[gid], "beta did not become host")
   assert(alpha.ns.App.hosts[gid] == nil, "alpha still hosts the transferred game")
+  -- #66: the old host object stays on the wire to answer sync requests, outside App.hosts
+  assert(alpha.ns.App.handed[gid] and alpha.ns.App.net.hosts[gid] == alpha.ns.App.handed[gid], "handed-over host left the wire at once")
   assert(alpha.ns.App.mirror.games[gid] and alpha.ns.App.mirror.games[gid].joined, "alpha did not become a follower")
   run(beta, "call 6")
   tickAll(1)
@@ -416,4 +418,14 @@ pump()
 local n = 0 for _ in pairs(alpha.ns.App.hosts) do n = n + 1 end
 
 assert(alpha.ns.App.currentView().title == "From the UI", "setup did not create the game")
+
+-- #66: the handed-over host leaves the wire once its recovery window has passed
+do
+  local handedGid = next(alpha.ns.App.handed)
+  assert(handedGid, "no handed-over host waiting")
+  clock = clock + alpha.ns.Host.HANDOFF_ANSWERS + 1
+  current = alpha.name; alpha.ns.App.tick()
+  assert(alpha.ns.App.net.hosts[handedGid] == nil, "handed-over host still on the wire after the window")
+  assert(next(alpha.ns.App.handed) == nil, "handed-over host still listed after the window")
+end
 print("client smoke OK: protocol and UI executed headlessly")

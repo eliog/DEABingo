@@ -834,6 +834,35 @@ describe("ownership", function()
 end)
 
 describe("transfer", function()
+  it("promotes the recipient of a handoff that is stuck behind a missed call", function()
+    local hub, host, owner, names = guildNight(3)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local newHost = hub.clients[names[2]]
+    local promoted = 0
+    newHost.mirror.deps.onEvent = function(kind, info) if kind == "promote" and info.gid == gid then promoted = promoted + 1 end end
+    -- a call nobody hears, then the handoff: the recipient holds TR behind the gap
+    host:call(4); hub:flush(function(m) return not m.payload:find("\31CL\31", 1, true) end)
+    assert.is_true(host:transfer(names[2])); hub:flush()
+    assert.are.equal(0, promoted)
+    -- the old host answers the gap's sync request with a snapshot that names the new owner
+    hub:advance(Mirror.GAP_WAIT + Host.SYNC_DELAY + 2)
+    assert.are.equal(1, promoted, "the recipient never learned it is the host")
+    local g = newHost.mirror.games[gid]
+    assert.is_truthy(g.calls[4], "the missed call was not recovered")
+    assert.are.equal(names[2], g.owner)
+    assert.is_truthy(newHost.mirror:promote(gid))
+    -- the handed-over host is a recovery source and nothing more: no cards, no joins
+    local before = #owner.sent
+    hub:advance(Host.HEARTBEAT * 2 + 2)
+    for i = before + 1, #owner.sent do
+      assert.is_nil(owner.sent[i].payload:find("\31GA\31", 1, true), "the old host still sends cards")
+    end
+    local late = hub:addClient("Late-Pagle", { guild = "DEA", group = "raid1" })
+    late.net:send(Codec.encode("JN", gid, { ver = Codec.PROTOCOL }), "WHISPER", names[1]); hub:flush()
+    assert.is_nil(host.record.roster["Late-Pagle"], "the old host still admits players")
+  end)
+
   it("hands the game over: the new host is told, takes over, and the old host's stale messages are ignored", function()
     local hub, host, owner, names = guildNight(4)
     joinAll(hub, host, names)

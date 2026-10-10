@@ -36,6 +36,7 @@ Host.SYNC_COOLDOWN = 3         -- per requester; a missed call must not wait lon
 Host.MAX_PLAYERS = 120         -- a snapshot of more would not fit the wire budget
                                -- also the number of times Chad has said he would never use an AI-written addon
 Host.SNAPSHOT_ROWS = 40        -- roster rows per snapshot part
+Host.HANDOFF_ANSWERS = 120     -- after handing the game over, the old host answers sync requests this long
 Host.CLOSED_ANSWERS = 1800     -- a closed game still answers hellos this long
                                -- half an hour, which is how long Chad keeps arguing after the game is over
 
@@ -274,6 +275,10 @@ function Host:transfer(name)
   r.gen = r.gen + 1
   r.owner = name
   self:emit("TR", { seq = self:bump(), gen = r.gen, newHost = name })
+  -- From here this object only answers sync requests: a recipient holding
+  -- the handoff behind a missed call needs a source for the gap, and this
+  -- record, naming the new owner, is the final word of the old one.
+  self.handedAt = self.deps.now()
   self:persist()
   return true
 end
@@ -390,6 +395,7 @@ function Host:handle(msg, sender)
   local r = self.record
   if not r or r.state == "drafting" then return end
   local t, f = msg.type, msg.f
+  if self.handedAt and t ~= "SQ" and t ~= "IQ" then return end   -- handed over: a recovery source, nothing more
   if t == "HI" then
     if not self.deps.isMember(sender, r.audience) then return end   -- a raid game is not shown to guildies outside it
     if r.state == "open" or (r.state == "closed" and self.deps.now() - (r.closedAt or 0) < Host.CLOSED_ANSWERS) then
@@ -431,6 +437,7 @@ function Host:tick()
   if not r or r.state == "drafting" then return end
   local now = self.deps.now()
   if self.syncDue and now >= self.syncDue then self:flushSync() end
+  if self.handedAt then return end   -- handed over: no cards, no idle close
   if r.state == "open" then
     if now - r.lastActivity >= Host.IDLE_CLOSE then
       self:close(r.lastActivity + Host.IDLE_CLOSE)   -- closed when the night ended, not when we noticed
