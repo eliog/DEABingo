@@ -27,6 +27,29 @@ local function goodRecord()
   }
 end
 
+describe("joined games", function()
+  local function joined()
+    return { owner = "Host-Pagle", gen = 1, seq = 2, state = "open", title = "Tuesday MC", itemsHash = "ab12cd", myBoard = board(), audience = "G" }
+  end
+
+  it("keeps them in the per-character file, so an alt does not rejoin the main's games", function()
+    local account = {}
+    local main, alt = Store.new(account, {}), Store.new(account, {})
+    main:saveJoined("g1", joined())
+    assert.is_truthy(main.char.joined.g1)
+    assert.is_nil(alt.char.joined.g1)
+    assert.is_nil(account.joined)
+    main:saveJoined("g1", nil)
+    assert.is_nil(main.char.joined.g1)
+  end)
+
+  it("drops joined entries an earlier version left in the account file", function()
+    local s = Store.new({ joined = { g1 = { state = "open" } } }, {})
+    assert.is_nil(s.db.joined)
+    assert.are.same({}, s.char.joined)
+  end)
+end)
+
 describe("saved records", function()
   it("accepts a complete record", function()
     assert.is_true(Store.isRecord(goodRecord()))

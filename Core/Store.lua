@@ -4,9 +4,12 @@
   table, so tests pass their own.
 
     hosted[gid]    a host record, written on every mutation
-    joined[gid]    what a replica needs to pick a game back up after /reload
     itemSets[hash] every item set seen, as the owner's library
     history[]      finished games, newest last, capped
+
+  and in the per-character file:
+
+    joined[gid]    what a replica needs to pick a game back up after /reload
 ]]
 
 local _, ns = ...
@@ -22,10 +25,20 @@ Store.SCHEMA = 1
 Store.HISTORY_MAX = 20      -- finished games kept; Chad's losses are kept at the same rate as everyone else's
 Store.ITEM_SETS_MAX = 50
 
-function Store.new(db)
+function Store.new(db, chardb)
   local self = setmetatable({}, Store)
   self.db = Store.shape(db)
+  self.char = Store.shapeChar(chardb)
   return self
+end
+
+-- The per-character file holds what this character has joined. Joined games
+-- once lived in the account file, where every alt rejoined them on login;
+-- entries left there by earlier versions are dropped.
+function Store.shapeChar(chardb)
+  if type(chardb) ~= "table" then chardb = {} end
+  if type(chardb.joined) ~= "table" then chardb.joined = {} end
+  return chardb
 end
 
 -- Schema migrations: migrations[n] takes a database at version n to n + 1.
@@ -35,9 +48,10 @@ Store.migrations = {}
 function Store.shape(db)
   if type(db) ~= "table" then db = {} end
   if type(db.schema) ~= "number" then db.schema = 0 end
-  for _, key in ipairs({ "options", "itemSets", "history", "hosted", "joined", "seenGames" }) do
+  for _, key in ipairs({ "options", "itemSets", "history", "hosted", "seenGames" }) do
     if type(db[key]) ~= "table" then db[key] = {} end
   end
+  db.joined = nil   -- moved to the per-character file
   local from = db.schema
   while from < Store.SCHEMA do
     local migrate = Store.migrations[from]
@@ -140,8 +154,8 @@ function Store.isPosition(pos)
 end
 
 function Store:saveJoined(gid, game)
-  if not game then self.db.joined[gid] = nil; return end
-  self.db.joined[gid] = {
+  if not game then self.char.joined[gid] = nil; return end
+  self.char.joined[gid] = {
     gid = gid, owner = game.owner, gen = game.gen, seq = game.seq, state = game.state,
     title = game.title, itemsHash = game.itemsHash, board = game.myBoard, audience = game.audience,
   }

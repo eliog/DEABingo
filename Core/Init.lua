@@ -523,7 +523,7 @@ function App.setup()
     end
   end
   App.rejoin = {}
-  for gid, j in pairs(App.store.db.joined) do
+  for gid, j in pairs(App.store.char.joined) do
     if type(j) == "table" and j.state == "open" then App.rejoin[gid] = true end
   end
   if AceComm then AceComm:RegisterComm(Net.PREFIX, onComm) end
@@ -1048,7 +1048,7 @@ commands.reset = function()
   App.current = nil
   App.rejoin = {}
   App.store.db.hosted = {}
-  App.store.db.joined = {}
+  App.store.char.joined = {}
   App.mirror.games = {}
   App.mirror.cards = {}
   print_("forgot every hosted and joined game on this character")
@@ -1121,7 +1121,7 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
     if type(DEABingoDB) ~= "table" then DEABingoDB = {} end
     if type(DEABingoCharDB) ~= "table" then DEABingoCharDB = {} end
     App.chardb = DEABingoCharDB
-    App.store = Store.new(DEABingoDB)
+    App.store = Store.new(DEABingoDB, DEABingoCharDB)
     DEABingoDB = App.store.db
     ns.db = App.store.db
     SLASH_DEABINGO1 = "/dea"
