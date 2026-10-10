@@ -272,6 +272,38 @@ describe("combat", function()
     assert.is_true(other:HasFocus())
     other:ClearFocus()
   end)
+
+  it("keeps the scrim through a view change, until combat ends", function()
+    app.lobby = function() return {} end     -- the lobby view lists open games
+    Window.setCombat(true)
+    Window.show("options")
+    assert.is_true(win.combatScrim:IsShown(), "showing a view dropped the scrim")
+    Window.show("lobby")
+    assert.is_true(win.combatScrim:IsShown())
+    Window.setCombat(false)
+    assert.is_false(win.combatScrim:IsShown())
+    Window.show("options")
+    assert.is_false(win.combatScrim:IsShown(), "a view change brought the scrim back")
+    app.lobby = nil
+  end)
+end)
+
+-- A /reload mid-fight builds the window after PLAYER_REGEN_DISABLED has
+-- passed; Init asks UnitAffectingCombat once the window exists and calls
+-- setCombat with the answer. That query lives in Init and is covered by the
+-- smoke; this is the window's side: combat set before the first show.
+describe("a window built in combat", function()
+  it("comes up dimmed, with no overlay, and clears when combat ends", function()
+    local w = Window.init(app)
+    Window.setCombat(true)
+    Window.show("options")
+    assert.is_true(w.combatScrim:IsShown())
+    assert.is_false(w.sheetFrame:IsShown())
+    assert.is_false(w.confirmFrame:IsShown())
+    assert.is_nil(GetCurrentKeyBoardFocus())
+    Window.setCombat(false)
+    assert.is_false(w.combatScrim:IsShown())
+  end)
 end)
 
 describe("confirmation card", function()
@@ -298,6 +330,21 @@ describe("confirmation card", function()
     assert.is_nil(cf.onConfirm)
     assert.is_false(win.sheetFrame:IsShown())
     Window.setCombat(false)
+  end)
+
+  it("does nothing when its confirm button is clicked after the window hid", function()
+    local fired = 0
+    Window.confirm("T", "body", "Do it", function() fired = fired + 1 end)
+    win.__scripts.OnHide(win)
+    assert.is_nil(cf.onConfirm)
+    cf.card.confirm.__scripts.OnClick(cf.card.confirm, "LeftButton")
+    assert.are.equal(0, fired, "a dismissed confirmation fired its action")
+    assert.is_false(cf:IsShown())
+    -- a fresh confirmation after that still works
+    Window.confirm("T", "body", "Do it", function() fired = fired + 1 end)
+    cf.card.confirm.__scripts.OnClick(cf.card.confirm, "LeftButton")
+    assert.are.equal(1, fired)
+    assert.is_false(cf:IsShown())
   end)
 end)
 

@@ -14,7 +14,7 @@ Quips.LIST = {
   "I didn't write this addon. I just stood in the fire and told Claude where it was.",
   "The AI wrote the code, audited the code and fixed what it found. I'm basically the loot council.",
   "Every square was called by a human. Every line of Lua was not.",
-  "The AI has 156 tests for this addon because it cannot press the button itself.",
+  "The AI has 159 tests for this addon because it cannot press the button itself.",
   "My code review process: \"what's left?\" and repeat until nothing's left.",
   "Built by AI, tested by AI, reviewed by AI, shipped by CurseForge. My job was choosing the colour scheme.",
   "No developers were harmed in the making of this addon. Mostly because none were involved.",
