@@ -714,7 +714,10 @@ end
 function App.callSquare(idx, undo)
   local host, game = currentGame()
   if host then
-    local result, err = undo and host:undo(idx) or host:call(idx)
+    -- an explicit branch: `undo and host:undo(idx) or host:call(idx)` would
+    -- call the square whenever undo() returned nil (not called, game closed)
+    local result, err
+    if undo then result, err = host:undo(idx) else result, err = host:call(idx) end
     return result ~= nil, err
   elseif game then
     return App.mirror:requestCall(game.gid, idx, undo)
@@ -959,7 +962,8 @@ local function callOrUndo(rest, undo)
   if not n or n ~= math.floor(n) or n < 1 or n > Logic.ITEM_COUNT then print_("usage: /dea " .. (undo and "undo" or "call") .. " <1-24>"); return end
   local host, game = currentGame()
   if host then
-    local result, err = undo and host:undo(n - 1) or host:call(n - 1)
+    local result, err
+    if undo then result, err = host:undo(n - 1) else result, err = host:call(n - 1) end
     if not result then print_(tostring(err)); return end
     print_(((undo and "undone: " or "called: ") .. Logic.escape(host.record.items[n])) .. (#result > 0 and (" | " .. (undo and "revoked " or "BINGO ") .. table.concat(result, ", ")) or ""))
   elseif game then

@@ -205,7 +205,23 @@ do
   tickAll(1)
   assert(alpha.ns.App.currentView().called[5], "old host did not see the new host's call")
 end
-run(beta, "undo 5")
+-- #69: undoing a square that was never called must not call it, by slash command or by click
+do
+  local gid = beta.ns.App.current
+  local h = beta.ns.App.hosts[gid]
+  local free
+  for i = 0, 23 do if not h.record.calls[i] then free = i; break end end
+  assert(free, "no uncalled square left")
+  run(beta, "undo " .. (free + 1))
+  assert(h.record.calls[free] == nil, "undoing an uncalled square called it")
+  assert(chat[#chat]:find("not called", 1, true), "undo of an uncalled square did not say why: " .. tostring(chat[#chat]))
+  local okay, err = beta.ns.App.callSquare(free, true)
+  assert(okay == false and err == "not called", "callSquare undo of an uncalled square: " .. tostring(okay) .. " " .. tostring(err))
+  assert(h.record.calls[free] == nil, "callSquare undo of an uncalled square called it")
+  assert(h.record.calls[4], "square 5 was expected to be called here")
+  run(beta, "undo 5")   -- a called square really is undone
+  assert(h.record.calls[4] == nil, "undo of a called square did not undo it")
+end
 tickAll(1)
 -- #43/#51: a call made during a lockdown is held; the restriction event lets it out without a tick
 _G.lockdown = true
