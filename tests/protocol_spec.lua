@@ -998,6 +998,38 @@ describe("hostile input", function()
     assert.are.equal(follower.mirror.games[gid].seq, Codec.decode(follower.net.queue[#follower.net.queue].payload).f.haveSeq)
   end)
 
+  it("still sends the rest of the held messages when one of them fails", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner, follower = hub.clients[names[1]], hub.clients[names[2]]
+    local gid = host.record.gid
+    owner.locked = true
+    assert(host:call(1)); assert(host:call(2)); assert(host:call(3))
+    local real = owner.net.deps.transport
+    local failed = 0
+    owner.net.deps.transport = { send = function(payload, ...)
+      if failed == 0 and Codec.decode(payload).f.idx == 2 then failed = failed + 1; error("no player named X") end
+      return real.send(payload, ...)
+    end }
+    owner.locked = false
+    hub:advance(1)
+    owner.net.deps.transport = real
+    assert.are.equal(1, failed)
+    assert.are.equal(0, #owner.net.queue)
+    assert.is_true(owner.net.stats.dropped >= 1)
+    -- the calls on either side of the failure reached the wire
+    local wire = {}
+    for _, m in ipairs(owner.sent) do
+      local msg = Codec.decode(m.payload)
+      if msg and msg.type == "CL" then wire[msg.f.idx] = true end
+    end
+    assert.is_true(wire[1] and wire[3] and not wire[2], "wrong calls reached the wire")
+    -- the follower fills the gap the lost one left through the usual sync path
+    hub:advance(Mirror.GAP_WAIT + Host.SYNC_DELAY + 2)
+    assert.is_truthy(follower.mirror.games[gid].calls[2])
+    assert.is_truthy(follower.mirror.games[gid].calls[3])
+  end)
+
   it("caps what it holds, dropping the oldest", function()
     local hub, _, _, names = guildNight(1)
     local owner = hub.clients[names[1]]

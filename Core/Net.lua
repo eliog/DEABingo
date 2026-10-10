@@ -120,11 +120,19 @@ function Net:flushQueue()
   if self.deps.inLockdown and self.deps.inLockdown() then return end
   local q = self.queue
   self.queue = {}
+  local sent = 0
   for _, m in ipairs(q) do
-    self.stats.sent = self.stats.sent + 1
-    self.deps.transport.send(m.payload, m.dist, m.target, m.prio)
+    -- one bad target must not take the rest of the held messages with it
+    local okay, err = pcall(self.deps.transport.send, m.payload, m.dist, m.target, m.prio)
+    if okay then
+      sent = sent + 1
+      self.stats.sent = self.stats.sent + 1
+    else
+      self.stats.dropped = self.stats.dropped + 1
+      self:log("held message failed to send: " .. tostring(err))
+    end
   end
-  self:log(("lockdown over, sent %d held messages"):format(#q))
+  self:log(("lockdown over, sent %d held messages"):format(sent))
 end
 
 -- Which broadcast channels this client can reach right now.
