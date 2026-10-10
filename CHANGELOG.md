@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.1.5 (2026-10-09)
+
+Everything in v0.1.5-beta1, plus the fixes from a code review of the protocol and persistence:
+
+- A character whose name merely extends ours ("Dea Onex", "Deaone", or our first name alone) can no longer replay our hello and become our identity, taking our hosted games' ownership with it (#62, #72). On classic realms the realm is part of the identity too (#76).
+- Another host can no longer poison a game's squares by announcing a set under that game's hash: a set is trusted only when its hash comes out of its content and it came from the game's own host, in memory and in the saved library (#63, #73).
+- A snapshot that arrives after newer calls no longer rolls the game back and erases them (#64).
+- A follower that missed the last call before a game closed now recovers it: the host stays around to answer, keeps answering until the final state is through, and History ends up with the full result (#65, #74).
+- Handing a game over is reliable: a recipient that missed a call before the handoff, or the handoff message itself, still takes over; the old host resends until the new host's first card and refuses to call meanwhile (#66, #75).
+- Logging in on an alt no longer rejoins the main's games; joined games are saved per character (#67).
+- A join whose request or welcome was lost is asked again, a few times, before the addon says it could not join (#68).
+- `/dea undo` on a square that was never called no longer calls it (#69).
+- The chip and the toast anchor come back where they were dragged after a reload (#71).
+- CI fails when the headless client smoke fails (#70).
+
 ## v0.1.5-beta1 (2026-10-09)
 
 - The game tab can also shrink in height, to 440; the other tabs keep the full minimum and the window grows back on leaving the game tab (#61).
