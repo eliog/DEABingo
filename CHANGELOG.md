@@ -13,6 +13,7 @@
 - The window built by a reload mid-fight comes up dimmed and unclickable, like one that saw the fight start (#53).
 - In combat the window's header stays live: the close button and the title-bar drag work while the rest is dimmed (#54).
 - A text box that had the keyboard when combat started lets it go, so keys reach the game again (#55).
+- A confirmation card closes with the window (Escape, a reload) and when combat starts, instead of staying up with a stale action behind its button (#56).
 
 ## v0.1.3 (2026-10-09)
 

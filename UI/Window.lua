@@ -952,7 +952,9 @@ function Window.init(callbacks)
   win.confirmFrame = cf
 
   win:SetScript("OnShow", function() Window.refresh(); if app.onShown then app.onShown() end end)
-  win:SetScript("OnHide", function() sh:Hide() end)
+  -- Escape or a /reload closes the window with the overlays up; a card
+  -- that outlives that would fire a callback for a game that has moved on.
+  win:SetScript("OnHide", function() sh:Hide(); cf:Hide(); cf.onConfirm = nil end)
   win:Hide()
   return win
 end
@@ -1021,7 +1023,11 @@ end
 function Window.setCombat(inCombat)
   if not win then return end
   win:SetAlpha(inCombat and 0.4 or 1)
-  if inCombat then dropFocus() end
+  if inCombat then
+    dropFocus()
+    win.sheetFrame:Hide()
+    win.confirmFrame:Hide(); win.confirmFrame.onConfirm = nil
+  end
   if not win.combatScrim then
     local sc = CreateFrame("Button", nil, win)
     sc:SetPoint("TOPLEFT", win.header, "BOTTOMLEFT")
