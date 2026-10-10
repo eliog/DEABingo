@@ -18,6 +18,7 @@
 - A send the client refuses for a lockdown that began after the check, or that the chat library had already spooled, goes back to the front of the queue; `/dea net` counts refusals and `/dea debug` shows the client's result code (#50).
 - The queue also drains the moment the client reports the restriction over, not only on the next tick (#51).
 - The game tab can shrink to the board alone: below the full width the standings and calls rail hides and the board takes the window; the other tabs keep the full minimum and widen the window back (#59).
+- A hello held through a lockdown still teaches the client its own server-side name from the echo when it finally goes out (#60).
 
 ## v0.1.3 (2026-10-09)
 

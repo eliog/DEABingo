@@ -1558,3 +1558,108 @@ describe("lockdown and the mirror", function()
     assert.is_nil(joiner.mirror.joining.zzzz)
   end)
 end)
+
+-- Lockdowns combined with the rest of a raid night.
+describe("lockdown, adversarial", function()
+  it("learns its name from the echo of a hello that waited out a lockdown", function()
+    local hub = Hub.new()
+    hub:addClient("Player1-Pagle", { guild = "DEA", group = "raid1" })
+    local c = hub:addClient("Dea One-Two", { guild = "DEA", group = "raid1", thinksItIs = "Dea-One" })
+    c.locked = true                       -- a /reload mid-fight: the hello is held
+    c.mirror:hello()
+    hub:advance(Net.ECHO_WINDOW * 4)
+    assert.is_nil(c.learned)
+    c.locked = false
+    hub:advance(1)
+    assert.are.equal("Dea One-Two", c.learned, "the echo of the held hello taught nothing")
+    assert.are.equal("Dea One-Two", c.net.deps.me)
+    assert.are.equal("Dea One-Two", c.mirror.deps.me)
+  end)
+
+  it("hands a game over from inside a lockdown: the held transfer promotes the new host at the lift", function()
+    local hub, host, owner, names = guildNight(3)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    local newHost, watcher = hub.clients[names[2]], hub.clients[names[3]]
+    owner.locked = true
+    assert(host:call(1))
+    hub:advance(Host.HEARTBEAT + 1)       -- a heartbeat falls due, held
+    assert.is_true(host:transfer(names[2]))
+    -- the app's side of a transfer: the old host stops writing and follows its own record
+    owner.net:detachHost(gid)
+    owner.mirror:adopt(host.record, names[1])
+    hub:advance(5)
+    assert.are.equal(names[1], watcher.mirror.games[gid].owner, "the transfer got through the lockdown")
+    local promoted = false
+    newHost.mirror.deps.onEvent = function(kind, info) if kind == "promote" and info.gid == gid then promoted = true end end
+    owner.locked = false
+    hub:advance(1)
+    assert.is_true(promoted, "the new host was not told")
+    assert.are.equal(names[2], watcher.mirror.games[gid].owner)
+    assert.are.equal(2, watcher.mirror.games[gid].gen)
+    assert.is_truthy(watcher.mirror.games[gid].calls[1], "the call held before the transfer was lost")
+    local record = newHost.mirror:promote(gid)
+    assert.is_truthy(record)
+    newHost.mirror:forget(gid)
+    local h2 = newHost:restoreHost(record)
+    h2:heartbeat(); hub:flush()
+    h2:call(2); hub:flush()
+    assert.is_truthy(watcher.mirror.games[gid].calls[2])
+    assert.is_truthy(owner.mirror.games[gid].calls[2], "the old host does not follow the new one")
+    assert.are.equal(names[2], watcher.mirror.cards[gid].host)
+    assert.is_false(watcher.mirror.cards[gid].away == true)
+  end)
+
+  it("closes a game from inside a lockdown: the lobby hears the answer to its hello, then the close", function()
+    local hub, host, owner, names = guildNight(3)
+    joinAll(hub, host, { names[1], names[2] })
+    local gid = host.record.gid
+    local follower, lobby = hub.clients[names[2]], hub.clients[names[3]]
+    owner.locked = true
+    local sentBefore = #owner.sent
+    lobby.mirror:hello(); hub:flush()     -- answered with a whispered card, held (one per channel heard)
+    assert(host:close())
+    owner.net:detachHost(gid)             -- the host is done with it; the queue is not
+    hub:advance(5)
+    assert.are.equal("open", follower.mirror.games[gid].state)
+    assert.are.equal("open", lobby.mirror.cards[gid].state)
+    owner.locked = false
+    hub:advance(1)
+    assert.are.equal(0, #owner.net.queue)
+    local wire = {}
+    for i = sentBefore + 1, #owner.sent do
+      wire[#wire + 1] = owner.sent[i].payload:match("^%d+\31(%u%u)") .. (owner.sent[i].target and "@" or "")
+    end
+    assert.are.same({ "GA@", "CX", "GA" }, wire)
+    assert.are.equal("closed", follower.mirror.games[gid].state)
+    assert.are.equal("closed", follower.mirror.cards[gid].state)
+    assert.are.equal("closed", lobby.mirror.cards[gid].state, "the stale whispered card outlived the close")
+  end)
+
+  it("lets a follower who reloaded mid-fight rejoin after the lift; the request held before is gone with it", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local gid = host.record.gid
+    host:grant(names[2], true); hub:flush()
+    local before = hub.clients[names[2]]
+    before.locked = true
+    assert(before.mirror:requestCall(gid, 3))
+    hub:advance(10)
+    hub:removeClient(names[2])
+    local again = hub:addClient(names[2], { guild = "DEA", group = "raid1" })
+    again.locked = true
+    again.mirror:hello()
+    hub:advance(Host.HEARTBEAT + 1)       -- the host's heartbeat reaches it: receiving is never gated
+    assert.is_truthy(again.mirror.cards[gid])
+    assert(again.mirror:join(gid))
+    assert.are.equal(3, #again.net.queue)   -- two hellos and the join
+    again.locked = false
+    hub:advance(Host.SYNC_DELAY + 2)
+    local g = again.mirror.games[gid]
+    assert.is_true(g ~= nil and g.joined == true, "the rejoin after the reload was not honoured")
+    assert.are.same(host.record.roster[names[2]].board, g.myBoard)
+    assert.is_true(again.mirror:myState(gid).canCall)
+    assert.is_nil(host.record.calls[3], "a request lost with the reload reached the host")
+    assert.is_nil(g.outstanding[3])
+  end)
+end)

@@ -463,9 +463,13 @@ function Mirror:noteNewer(ver)
 end
 
 -- A held message just left the queue. A join request's welcome window
--- starts from now, not from when the click happened during the fight.
+-- starts from now, not from when the click happened during the fight. So
+-- does the window in which the echo of our own hello may teach us our
+-- name: a hello held through a fight (a /reload mid-pull) echoes minutes
+-- after it was composed, and would otherwise be ignored as too old.
 function Mirror:onReleased(msgType, gid)
   if msgType == "JN" and self.joining[gid] then self.joining[gid] = self.deps.now() end
+  if msgType == "HI" and self.helloAt then self.helloAt = self.deps.now() end
 end
 
 function Mirror:tick()
