@@ -273,6 +273,23 @@ for _, c in ipairs(clients) do
   now = now + 1
   App.playSound("call")
   assert(played == 3, c.name .. ": call after the gap did not play")
+  -- the gap's edges: exactly TICK_GAP after a tick plays; an undo inside it is dropped; a bingo
+  -- inside it plays without moving the gap, so the next tick is still measured from the call
+  local base = now + 10
+  now = base; played = 0
+  App.playSound("call")
+  now = base + App.TICK_GAP / 2
+  App.playSound("undo")
+  assert(played == 1, c.name .. ": undo inside the gap played")
+  App.playSound("bingo")
+  assert(played == 2, c.name .. ": bingo inside the gap did not play")
+  now = base + App.TICK_GAP
+  App.playSound("call")
+  assert(played == 3, c.name .. ": call exactly TICK_GAP after the last tick did not play, or the bingo moved the gap")
+  now = base + App.TICK_GAP + App.TICK_GAP / 4
+  App.playSound("call")
+  assert(played == 3, c.name .. ": call inside the new gap played")
+  now = base + 2 * App.TICK_GAP
   -- history and options views, and the paste parser
   -- #22: start closing, switch tabs, let the timer fire: the lobby button keeps its label
   do
