@@ -1462,3 +1462,99 @@ describe("lockdown queue", function()
     assert.are.same({ [names[1]] = 1, [names[3]] = 1 }, targets)
   end)
 end)
+
+-- The mirror's judgements around a lockdown: who is away, what is lost,
+-- when to ask for a sync, and how long a welcome stays valid.
+describe("lockdown and the mirror", function()
+  it("judges a host away whose own lockdown holds the heartbeat, while this client is free", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner, follower = hub.clients[names[1]], hub.clients[names[2]]
+    local gid = host.record.gid
+    owner.locked = true
+    hub:advance(Mirror.CARD_TTL + 2)
+    assert.is_true(follower.mirror.cards[gid].away, "a silent host was not judged away")
+    owner.locked = false
+    hub:advance(1)
+    assert.is_false(follower.mirror.cards[gid].away, "the held heartbeat did not bring the host back")
+  end)
+
+  it("reports a request still unanswered REQUEST_TIMEOUT seconds after the lift, not before", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local follower = hub.clients[names[2]]
+    local gid = host.record.gid
+    host:grant(names[2], true); hub:flush()
+    local lost = {}
+    follower.mirror.deps.onEvent = function(kind, info) if kind == "callLost" then lost[#lost + 1] = info end end
+    follower.locked = true
+    assert(follower.mirror:requestCall(gid, 3))
+    hub:advance(60)
+    assert.are.equal(0, #lost)
+    hub:removeClient(names[1])            -- the host logged off during the fight
+    follower.locked = false
+    hub:advance(1)                        -- the request leaves, to nobody
+    assert.are.equal(0, #follower.net.queue)
+    hub:advance(Mirror.REQUEST_TIMEOUT - 1)
+    assert.are.equal(0, #lost, "reported lost before the timeout had run after the lift")
+    assert.is_truthy(follower.mirror.games[gid].outstanding[3])
+    hub:advance(1)
+    assert.are.equal(1, #lost)
+    assert.are.equal(3, lost[1].idx)
+    assert.is_nil(follower.mirror.games[gid].outstanding[3])
+  end)
+
+  it("restarts the gap clock on the lift: no sync request for GAP_WAIT-1 seconds, then one", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local follower = hub.clients[names[2]]
+    local gid = host.record.gid
+    assert(host:call(1))
+    hub:flush(function(m) return not m.payload:find("\31CL\31", 1, true) end)   -- the call never arrives
+    assert(host:call(2)); hub:flush()                                            -- the next one does: a gap
+    local g = follower.mirror.games[gid]
+    assert.is_truthy(g.gapSince)
+    assert.is_nil(g.calls[2])
+    local function sqs()
+      local n = 0
+      for _, t in ipairs(hub:types(follower)) do if t == "SQ" then n = n + 1 end end
+      return n
+    end
+    local base = sqs()
+    follower.locked = true
+    hub:advance(20)                       -- shorter than a heartbeat, so nothing else prompts a sync
+    assert.are.equal(base, sqs(), "asked for a sync during the lockdown")
+    follower.locked = false
+    hub:advance(1)
+    hub:advance(Mirror.GAP_WAIT - 1)
+    assert.are.equal(base, sqs(), "asked before GAP_WAIT had run after the lift")
+    hub:advance(1)
+    assert.are.equal(base + 1, sqs())
+    hub:advance(Host.SYNC_DELAY + 1)
+    assert.is_truthy(g.calls[1]); assert.is_truthy(g.calls[2])
+  end)
+
+  it("stamps a held join request as it leaves, and still ignores a welcome it never asked for", function()
+    local hub, host, _, names = guildNight(2)
+    local joiner = hub.clients[names[2]]
+    local gid = host.record.gid
+    joiner.locked = true
+    assert(joiner.mirror:join(gid))
+    local asked = joiner.mirror.joining[gid]
+    hub.time = hub.time + Mirror.JOIN_WINDOW * 2     -- the fight, with no tick to notice it
+    joiner.locked = false
+    joiner.net:flushQueue()
+    assert.are.equal(hub.time, joiner.mirror.joining[gid], "the release did not re-stamp the join")
+    assert.is_true(joiner.mirror.joining[gid] - asked >= Mirror.JOIN_WINDOW * 2)
+    hub:flush()
+    assert.is_true(joiner.mirror.games[gid].joined)
+    -- a welcome for a game this client never asked to join is refused as before
+    local forged = Codec.encode("WE", "zzzz", { seq = 1, board = host.record.roster[names[1]].board, canCall = false,
+                                                createdAt = hub.time, itemsHash = host.record.itemsHash, gen = 1 })
+    assert.is_truthy(forged)
+    hub.clients[names[1]].net.deps.transport.send(forged, "WHISPER", names[2])
+    hub:flush()
+    assert.is_nil(joiner.mirror.games.zzzz)
+    assert.is_nil(joiner.mirror.joining.zzzz)
+  end)
+end)
