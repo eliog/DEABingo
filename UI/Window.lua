@@ -15,6 +15,14 @@ ns.Window = Window
 
 -- Below this the 24 edit boxes of the setup grid shrink past legibility.
 Window.MIN_W, Window.MIN_H = 720, 560
+-- On the game tab the window may shrink to the board alone: the rail hides
+-- below the full minimum width and the width may go on down to this.
+Window.BOARD_MIN_W = 400
+Window.RAIL_HIDE_W = Window.MIN_W
+
+function Window.minWidthFor(view)
+  return view == "game" and Window.BOARD_MIN_W or Window.MIN_W
+end
 
 local RAIL = 290
 local PAD = 14
@@ -255,6 +263,23 @@ local function buildGame(f)
   g.rail:SetPoint("TOPRIGHT", -PAD, -PAD)
   g.rail:SetPoint("BOTTOMRIGHT", -PAD, PAD)
   g.rail:SetWidth(RAIL)
+
+  -- Narrower than the full minimum, the rail goes and the board takes the
+  -- width: a caller can shrink the window to the squares and keep calling.
+  function g:LayoutRail(width)
+    local compact = (width or win:GetWidth()) < Window.RAIL_HIDE_W
+    if compact == self.compact then return end
+    self.compact = compact
+    self.boardHolder:ClearAllPoints()
+    self.boardHolder:SetPoint("TOPLEFT", PAD, -PAD)
+    self.boardHolder:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", compact and -PAD or -(RAIL + PAD * 2), PAD)
+    if compact then
+      self.rail:Hide()
+      if self.peek then self.peek:Hide() end
+    else
+      self.rail:Show()
+    end
+  end
 
   -- standings
   g.standings = W.panel(g.rail)
@@ -878,8 +903,9 @@ function Window.init(callbacks)
   -- Manual sizing: the grip tracks the cursor itself, so the window grows
   -- only right and down from its pinned top-left, whatever it was anchored
   -- to and whatever the UI scale.
-  local MIN_W, MIN_H = Window.MIN_W, Window.MIN_H
+  local MIN_H = Window.MIN_H
   win.grip:SetScript("OnMouseDown", function(self)
+    local MIN_W = Window.minWidthFor(win.view)
     local left, top = win:GetLeft(), win:GetTop()
     if left and top then
       win:ClearAllPoints()
@@ -902,8 +928,8 @@ function Window.init(callbacks)
     local point, _, relPoint, x, y = win:GetPoint(1)
     app.savePosition({ point = point, relPoint = relPoint, x = x, y = y, w = win:GetWidth(), h = win:GetHeight() })
   end)
-  win:SetScript("OnSizeChanged", function()
-    if win.views.game:IsShown() then win.views.game.board:Layout() end
+  win:SetScript("OnSizeChanged", function(_, w)
+    if win.views.game:IsShown() then win.views.game:LayoutRail(w); win.views.game.board:Layout() end
     if win.views.setup:IsShown() then win.views.setup:LayoutGrid() end
     -- the lists (lobby, history, options) follow the width on their own
   end)
@@ -1093,6 +1119,7 @@ local function renderGame(v)
   win.footer:Quip(false)
   local g = win.views.game
   win.currentView = v
+  g:LayoutRail()
   win.header.title:SetText(Logic.escape(v.title))
   local status
   if v.state == "closed" then status = "Closed"
@@ -1230,6 +1257,16 @@ local function renderOptions()
   win.footer.action:Hide()
 end
 
+-- The minimum width follows the view: the game tab may shrink to the board,
+-- every other tab needs the full width, so leaving the game tab from a
+-- narrow window widens it.
+function Window.applyBounds()
+  local minW = Window.minWidthFor(win.view)
+  if win.SetResizeBounds then win:SetResizeBounds(minW, Window.MIN_H) end
+  local w = win:GetWidth()
+  if w and w < minW then win:SetWidth(minW) end
+end
+
 function Window.refresh()
   if not win or not win:IsShown() then return end
   win.footer.confirmClose = nil   -- a half-finished "Really close?" never survives a re-render
@@ -1245,6 +1282,7 @@ function Window.refresh()
   win.view = view
   hideAll(win.views)
   win.views[view]:Show()
+  Window.applyBounds()
   -- tabs: the Game tab exists only while in a live game; a history entry
   -- shown as a board belongs to the History tab
   local live = app.view()

@@ -300,3 +300,46 @@ describe("confirmation card", function()
     Window.setCombat(false)
   end)
 end)
+
+describe("the game view at a narrow width", function()
+  local win, g
+  setup(function() win = Window.init(app); g = win.views.game end)
+  teardown(function() win.view = nil; Window.applyBounds() end)
+
+  local function boardRight()
+    for _, pt in ipairs(g.boardHolder.__points) do if pt[1] == "BOTTOMRIGHT" then return pt.x end end
+  end
+
+  it("hides the rail below the full minimum and gives the board the width", function()
+    g:LayoutRail(Window.RAIL_HIDE_W)
+    assert.is_true(g.rail:IsShown())
+    local full = boardRight()
+    g:LayoutRail(Window.RAIL_HIDE_W - 1)
+    assert.is_false(g.rail:IsShown())
+    assert.is_false(g.peek:IsShown())
+    assert.is_true(boardRight() > full, "the board did not take the rail's width")
+    g:LayoutRail(Window.RAIL_HIDE_W)
+    assert.is_true(g.rail:IsShown())
+    assert.are.equal(full, boardRight())
+  end)
+
+  it("follows the window's own resize event", function()
+    g:Show()
+    win.__scripts.OnSizeChanged(win, Window.RAIL_HIDE_W - 10)
+    assert.is_false(g.rail:IsShown())
+    win.__scripts.OnSizeChanged(win, Window.RAIL_HIDE_W + 10)
+    assert.is_true(g.rail:IsShown())
+  end)
+
+  it("lowers the minimum width on the game tab only, and widens again on leaving it", function()
+    win.view = "game"
+    win:SetSize(Window.BOARD_MIN_W + 20, Window.MIN_H)
+    Window.applyBounds()
+    assert.are.equal(Window.BOARD_MIN_W, win.__minW)
+    assert.are.equal(Window.BOARD_MIN_W + 20, win:GetWidth())
+    win.view = "options"
+    Window.applyBounds()
+    assert.are.equal(Window.MIN_W, win.__minW)
+    assert.are.equal(Window.MIN_W, win:GetWidth(), "a narrow window did not widen for the Options tab")
+  end)
+end)

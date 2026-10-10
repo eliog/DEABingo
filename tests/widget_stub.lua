@@ -55,6 +55,7 @@ local function newWidget(kind, name)
         s.__points[#s.__points + 1] = pt
       end
       elseif key == "ClearAllPoints" then return function(s) s.__points = {} end
+      elseif key == "SetResizeBounds" then return function(s, w, h) s.__minW, s.__minH = w, h end
       elseif key:match("^Set") or key:match("^Register") or key:match("^Enable") or key:match("^Start") or key:match("^Stop")
           or key:match("^Clear") or key:match("^Add") or key == "Raise" or key == "Lower" then
         return function() end
