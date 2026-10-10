@@ -375,9 +375,15 @@ function Mirror:handle(msg, sender)
     if st.count < st.of then return end
     g.snapshotParts = nil
     f.roster = st.rows
+    local wasClosed, hadSeq = g.state == "closed", g.seq
     self:applySnapshot(g, f)
     if not g.items then self:requestItems(gid) end
     self:persist(gid)
+    -- A closed snapshot is the end of the game, or the final state of one
+    -- we already knew had ended: either way the archive wants it.
+    if g.state == "closed" and (not wasClosed or g.seq ~= hadSeq) and self.deps.onEvent then
+      self.deps.onEvent("close", { gid = gid })
+    end
   elseif SEQUENCED[t] then
     if f.seq <= g.seq then return end
     if f.seq == g.seq + 1 then
@@ -445,7 +451,8 @@ function Mirror:onCard(gid, f, sender)
       if self.deps.onEvent then self.deps.onEvent("close", { gid = gid }) end
     end
     if f.seq > g.seq then
-      self:requestSync(gid)
+      -- a closed card is the host's last broadcast: worth one ask regardless of the cooldown
+      self:requestSync(gid, f.state == "closed")
     elseif f.seq == g.seq and f.callMask ~= Codec.callMask(g.calls) then
       self:requestSync(gid)
     end

@@ -79,6 +79,20 @@ describe("saved records", function()
     assert.are.equal(0, #s:openHosted("Nobody"))
   end)
 
+  it("also restores a recently closed record, so it can keep answering sync requests", function()
+    local s = Store.new({})
+    local a = goodRecord(); a.gid = "a"
+    local recent = goodRecord(); recent.gid = "recent"; recent.state = "closed"; recent.closedAt = 1700000000 - 60
+    local old = goodRecord(); old.gid = "old"; old.state = "closed"; old.closedAt = 1700000000 - 7200
+    for _, r in ipairs({ a, recent, old }) do s:saveHosted(r) end
+    local mine = s:openHosted("Dea One", nil, 1700000000 - 1800)
+    local gids = {}
+    for _, r in ipairs(mine) do gids[r.gid] = true end
+    assert.is_true(gids.a); assert.is_true(gids.recent); assert.is_nil(gids.old)
+    -- without a window, closed records stay out
+    assert.are.equal(1, #s:openHosted("Dea One"))
+  end)
+
   it("skips history entries with broken boards or calls", function()
     local s = Store.new({})
     s:addHistory({ gid = "h1", title = "Good", roster = { ["Dea One"] = { board = board() } }, calls = { [1] = 1700000000 }, items = items() })

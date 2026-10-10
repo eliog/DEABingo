@@ -95,7 +95,13 @@ do
   assert(h.record.roster["Dea One"], "roster key not renamed")
   assert(DEABingoCharDB.me == "Dea One", "learned name not remembered: " .. tostring(DEABingoCharDB.me))
   h:close()   -- out of the way for the rest of the run
-  assert(alpha.ns.App.hosts.seeded1 == nil, "closed hosted game still attached")
+  -- a closed host stays attached through the recovery period, to answer late sync requests
+  assert(alpha.ns.App.hosts.seeded1 ~= nil, "closed hosted game detached at once")
+  assert(DEABingoDB.hosted.seeded1 ~= nil, "closed hosted record forgotten at once")
+  clock = clock + alpha.ns.Host.CLOSED_ANSWERS + 1
+  alpha.ns.App.tick()
+  assert(alpha.ns.App.hosts.seeded1 == nil, "closed hosted game still attached after the recovery period")
+  assert(DEABingoDB.hosted.seeded1 == nil, "closed hosted record still saved after the recovery period")
   alpha.ns.App.current = nil
 end
 -- #53: a client that loads mid-fight (a /reload in combat) comes up dimmed

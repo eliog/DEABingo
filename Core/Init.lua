@@ -417,13 +417,11 @@ end
 -- Game events from the host or the mirror.
 function App.onGameEvent(kind, info)
   if kind == "close" then
+    -- A closed game lives on in History. A follower may hear of the close
+    -- before the last call reaches it; the archive is rewritten as later
+    -- snapshots fill it in. A hosted game stays attached through the
+    -- recovery period to answer those requests; App.tick lets it go after.
     App.archive(info.gid)
-    -- a closed hosted game lives on in History; the host record can go
-    if App.hosts[info.gid] then
-      App.net:detachHost(info.gid)
-      App.hosts[info.gid] = nil
-      App.store:forgetHosted(info.gid)
-    end
     App.uiRefresh()
     return
   end
@@ -505,7 +503,10 @@ function App.setup()
   })
   App.net.mirror = App.mirror
   App.hosts = {}
-  for _, record in ipairs(App.store:openHosted(me, Logic.sameCharacter)) do
+  -- Open games resume; games closed within the recovery period come back
+  -- silently, to answer followers that missed the end.
+  App.store:forgetClosedHosted(GetServerTime() - Host.CLOSED_ANSWERS)
+  for _, record in ipairs(App.store:openHosted(me, Logic.sameCharacter, GetServerTime() - Host.CLOSED_ANSWERS)) do
     if record.owner ~= me then
       -- saved under an earlier form of our name: bring it in line
       local old = record.owner
@@ -515,8 +516,10 @@ function App.setup()
     local host = Host.restore(record, App.hostDeps())
     App.hosts[record.gid] = host
     App.net:attachHost(host)
-    App.current = record.gid
-    print_(("resumed hosting \"%s\""):format(Logic.escape(record.title)))
+    if record.state == "open" then
+      App.current = record.gid
+      print_(("resumed hosting \"%s\""):format(Logic.escape(record.title)))
+    end
   end
   App.rejoin = {}
   for gid, j in pairs(App.store.db.joined) do
@@ -542,6 +545,16 @@ end
 function App.tick()
   if not App.ready then return end
   App.net:tick()
+  -- A closed host has answered late followers long enough: let it go.
+  local now = GetServerTime()
+  for gid, host in pairs(App.hosts) do
+    local r = host.record
+    if r.state == "closed" and now - (r.closedAt or 0) >= Host.CLOSED_ANSWERS then
+      App.net:detachHost(gid)
+      App.hosts[gid] = nil
+      App.store:forgetHosted(gid)
+    end
+  end
   -- Silent rejoin after a reload: as soon as the card is heard, ask for the same board back.
   for gid in pairs(App.rejoin) do
     local card = App.mirror.cards[gid]

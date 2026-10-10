@@ -56,15 +56,25 @@ function Store:forgetHosted(gid)
   self.db.hosted[gid] = nil
 end
 
+-- Closed records past the recovery period are history (archived at close) and can go.
+function Store:forgetClosedHosted(before)
+  for gid, r in pairs(self.db.hosted) do
+    if type(r) ~= "table" or (r.state == "closed" and (tonumber(r.closedAt) or 0) < before) then self.db.hosted[gid] = nil end
+  end
+end
+
 -- Records this character owns and that are still open. `same(owner, me)`
 -- decides ownership; it defaults to equality, the client passes a
--- realm- and surname-tolerant comparison.
-function Store:openHosted(me, same)
+-- realm- and surname-tolerant comparison. With `closedSince`, records closed
+-- at or after that time come too: a closed host keeps answering followers
+-- who missed the end, and a reload should not silence it.
+function Store:openHosted(me, same, closedSince)
   same = same or function(a, b) return a == b end
   local out = {}
   for gid, r in pairs(self.db.hosted) do
-    if type(r) == "table" and type(r.owner) == "string" and same(r.owner, me) and r.state == "open" and Store.isRecord(r) then
-      out[#out + 1] = r
+    if type(r) == "table" and type(r.owner) == "string" and same(r.owner, me) and Store.isRecord(r) then
+      local live = r.state == "open" or (r.state == "closed" and closedSince and (r.closedAt or 0) >= closedSince)
+      if live then out[#out + 1] = r end
     end
   end
   table.sort(out, function(a, b) return a.createdAt < b.createdAt end)

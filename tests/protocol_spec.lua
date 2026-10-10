@@ -381,6 +381,44 @@ describe("resilience", function()
     assert.are.equal(names[2], f3.mirror.cards[gid].host)
   end)
 
+  it("archives the final state when a follower missed the last call and the close", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local f = hub.clients[names[2]]
+    local gid = host.record.gid
+    local g = f.mirror.games[gid]
+    -- every close event, with how many calls the follower held at that moment
+    local closes = {}
+    f.mirror.deps.onEvent = function(kind)
+      if kind == "close" then local n = 0 for _ in pairs(g.calls) do n = n + 1 end closes[#closes + 1] = n end
+    end
+    local lossy = function(m) return not (m.payload:find("\31CL\31", 1, true) or m.payload:find("\31CX\31", 1, true)) end
+    host:call(4); hub:flush(lossy)
+    host:close(); hub:flush(lossy)          -- the closed card still arrives
+    assert.are.equal("closed", g.state)
+    assert.is_true(#closes >= 1, "the closed card did not close the game")
+    -- the host is still there to answer: the final call comes back in a closed snapshot
+    hub:advance(Host.SYNC_DELAY + 1)
+    assert.is_truthy(g.calls[4], "the missed call never arrived")
+    assert.are.equal(host.record.seq, g.seq)
+    assert.are.equal(1, closes[#closes], "the archive was not rewritten with the final call")
+  end)
+
+  it("emits the close event when a closed snapshot is what tells it the game ended", function()
+    local hub, host, owner, names = guildNight(2)
+    joinAll(hub, host, names)
+    local f = hub.clients[names[2]]
+    local gid = host.record.gid
+    local closed = 0
+    f.mirror.deps.onEvent = function(kind) if kind == "close" then closed = closed + 1 end end
+    host:close(); hub:flush(function() return false end)     -- nothing of the close reaches the follower
+    assert.are.equal("open", f.mirror.games[gid].state)
+    owner.net.deps.transport.send(Codec.encode("SN", gid, host:snapshot()), "WHISPER", names[2])
+    hub:flush()
+    assert.are.equal("closed", f.mirror.games[gid].state)
+    assert.are.equal(1, closed)
+  end)
+
   it("closes itself after eight idle hours and never deletes anything", function()
     local hub, host, _, names = guildNight(2)
     joinAll(hub, host, names)

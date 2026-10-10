@@ -414,7 +414,10 @@ function Host:handle(msg, sender)
   elseif t == "SQ" then
     if not r.roster[sender] and not self.deps.isMember(sender, r.audience) then return end
     local now = self.deps.now()
-    if (self.lastSyncTo[sender] or -math.huge) + Host.SYNC_COOLDOWN > now then return end
+    -- A closed game answers regardless of the cooldown: the final state is
+    -- the last thing a follower who missed the end can ask for, and no
+    -- further card will prompt another try. The delay still collapses a burst.
+    if r.state ~= "closed" and (self.lastSyncTo[sender] or -math.huge) + Host.SYNC_COOLDOWN > now then return end
     self.syncRequests[sender] = now
     if not self.syncDue then self.syncDue = now + Host.SYNC_DELAY end
   elseif t == "NV" then
