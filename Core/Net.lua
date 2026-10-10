@@ -10,6 +10,7 @@
     - nothing from a message handler ever reaches a protected function
 
     deps.transport.send(payload, channel, target, prio)   the real or loopback wire
+    deps.inLockdown()        optional: true while the client refuses addon messages (Forever encounters)
     deps.now()
     deps.me
     deps.groupChannel()      "INSTANCE_CHAT" | "RAID" | "PARTY" | nil
@@ -28,6 +29,7 @@ Net.__index = Net
 ns.Net = Net
 
 Net.PREFIX = "DEABINGO"
+Net.QUEUE_MAX = 200     -- sends held through a lockdown; beyond this the oldest go
 Net.ECHO_WINDOW = 5     -- seconds after a hello during which its echo may teach us our name
 
 local PRIORITY = { CL = "ALERT", UN = "ALERT", CQ = "ALERT", IT = "BULK", SN = "BULK" }
@@ -45,7 +47,8 @@ function Net.new(deps)
   self.hosts = {}          -- gid -> Host
   self.mirror = nil
   self.buckets = {}        -- sender -> { tokens, at }
-  self.stats = { sent = 0, received = 0, dropped = 0, errors = 0 }
+  self.stats = { sent = 0, received = 0, dropped = 0, errors = 0, queued = 0 }
+  self.queue = {}          -- sends held while the client is in a chat lockdown, in order
   return self
 end
 
@@ -75,10 +78,43 @@ function Net:send(payload, channel, target)
   else
     return false
   end
-  local msgType = payload:match("^%d+\31(%u%u)\31")
+  local msgType, gid = payload:match("^%d+\31(%u%u)\31([^\31]*)")
+  local prio = PRIORITY[msgType] or "NORMAL"
+  if self.deps.inLockdown and self.deps.inLockdown() then
+    self:enqueue({ payload = payload, dist = dist, target = target, prio = prio, type = msgType, gid = gid })
+    return true
+  end
   self.stats.sent = self.stats.sent + 1
-  self.deps.transport.send(payload, dist, target, PRIORITY[msgType] or "NORMAL")
+  self.deps.transport.send(payload, dist, target, prio)
   return true
+end
+
+-- The Forever client refuses addon messages during an encounter, and the
+-- chat library does not say when one was refused, so sends made while the
+-- client reports a lockdown wait here and go out, in order, on the first
+-- tick after it lifts. Only the newest heartbeat per game is worth sending.
+function Net:enqueue(m)
+  local q = self.queue
+  if m.type == "GA" then
+    for i = #q, 1, -1 do
+      if q[i].type == "GA" and q[i].gid == m.gid then table.remove(q, i) end
+    end
+  end
+  if #q >= Net.QUEUE_MAX then table.remove(q, 1); self.stats.dropped = self.stats.dropped + 1 end
+  q[#q + 1] = m
+  self.stats.queued = self.stats.queued + 1
+end
+
+function Net:flushQueue()
+  if #self.queue == 0 then return end
+  if self.deps.inLockdown and self.deps.inLockdown() then return end
+  local q = self.queue
+  self.queue = {}
+  for _, m in ipairs(q) do
+    self.stats.sent = self.stats.sent + 1
+    self.deps.transport.send(m.payload, m.dist, m.target, m.prio)
+  end
+  self:log(("lockdown over, sent %d held messages"):format(#q))
 end
 
 -- Which broadcast channels this client can reach right now.
@@ -200,6 +236,7 @@ end
 
 -- Timers must never die to one bad record: every tick is protected.
 function Net:tick()
+  self:flushQueue()
   for _, host in pairs(self.hosts) do
     local okay, err = pcall(host.tick, host)
     if not okay then self:log("host tick error: " .. tostring(err)) end

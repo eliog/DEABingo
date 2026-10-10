@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Addon messages sent while the Forever client is in a chat lockdown (encounters) wait in a queue and go out, in order, when it lifts; only the newest heartbeat per game is kept. `/dea status` says whether the lockdown is on and how many messages wait (#43).
+
 ## v0.1.3 (2026-10-09)
 
 - Standings: each player on two lines, the whole name (Forever names are two words) then the meter and the CALLER flag, so rows no longer collide (#40).

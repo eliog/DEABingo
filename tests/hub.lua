@@ -53,6 +53,7 @@ function Hub:addClient(name, opts)
       if client.hosted then client.hosted.deps.me = real end
     end,
     groupChannel = function() return client.group and "RAID" or nil end,
+    inLockdown = function() return client.locked == true end,
     inGuild = function() return client.guild ~= nil end,
     isMember = function(other, audience)
       local o = hub.clients[other]

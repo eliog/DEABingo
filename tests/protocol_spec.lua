@@ -911,6 +911,47 @@ describe("identity", function()
 end)
 
 describe("hostile input", function()
+  it("holds sends through a chat lockdown and lets them out in order when it lifts", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner, follower = hub.clients[names[1]], hub.clients[names[2]]
+    local gid = host.record.gid
+    owner.locked = true
+    local sentBefore = #owner.sent
+    assert(host:call(1)); assert(host:call(2))
+    hub:advance(Host.HEARTBEAT * 2 + 1)   -- two heartbeats fall due meanwhile
+    assert.are.equal(sentBefore, #owner.sent, "a send got through the lockdown")
+    assert.is_nil(follower.mirror.games[gid].calls[1])
+    local gas = 0
+    for _, m in ipairs(owner.net.queue) do if m.type == "GA" then gas = gas + 1 end end
+    assert.are.equal(1, gas, "stale heartbeats kept")
+    assert.is_true(owner.net.stats.queued >= 3)
+    owner.locked = false
+    hub:advance(1)
+    assert.are.equal(0, #owner.net.queue)
+    assert.is_truthy(follower.mirror.games[gid].calls[1])
+    assert.is_truthy(follower.mirror.games[gid].calls[2])
+    local seqs = {}
+    for i = sentBefore + 1, #owner.sent do
+      local t, seq = owner.sent[i].payload:match("^%d+\31(%u%u)\31[^\31]*\31(%d+)")
+      if t == "CL" then seqs[#seqs + 1] = tonumber(seq) end
+    end
+    assert.are.equal(2, #seqs)
+    assert.is_true(seqs[1] < seqs[2], "calls left out of order")
+  end)
+
+  it("caps what it holds, dropping the oldest", function()
+    local hub, _, _, names = guildNight(1)
+    local owner = hub.clients[names[1]]
+    owner.locked = true
+    for i = 1, Net.QUEUE_MAX + 5 do
+      owner.net:send(Codec.encode("SQ", "g" .. i, { haveSeq = 0 }), "WHISPER", "Someone-Pagle")
+    end
+    assert.are.equal(Net.QUEUE_MAX, #owner.net.queue)
+    assert.are.equal(5, owner.net.stats.dropped)
+    assert.are.equal("g6", owner.net.queue[1].gid)
+  end)
+
   it("drops floods from one sender without touching the game", function()
     local hub, host, _, names = guildNight(2)
     joinAll(hub, host, names)

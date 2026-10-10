@@ -473,7 +473,7 @@ function App.setup()
   App.net = Net.new({
     transport = transport, now = GetServerTime, me = me, log = debug_,
     groupChannel = App.groupChannel, inGuild = App.inGuild, isMember = App.isMember,
-    learnMe = App.learnMe,
+    learnMe = App.learnMe, inLockdown = Compat.InChatLockdown,
   })
   App.mirror = Mirror.new({
     now = GetServerTime, me = me, log = debug_, addonVersion = Compat.GetAddOnVersion(ADDON),
@@ -795,6 +795,7 @@ end
 commands.status = function()
   print_(("version %s on %s"):format(Compat.GetAddOnVersion(ADDON), Compat.Summary()))
   print_(("you are %s; guild channel %s; group channel %s"):format(tostring(App.me()), App.inGuild() and "yes" or "no", tostring(App.groupChannel())))
+  print_(("chat lockdown now: %s; %d messages waiting"):format(Compat.InChatLockdown() and "yes" or "no", App.net and #App.net.queue or 0))
   local host, game = currentGame()
   if host then
     local r = host.record
@@ -1009,7 +1010,7 @@ end
 
 commands.net = function()
   local s = App.net.stats
-  print_(("sent %d, received %d, dropped %d, handler errors %d"):format(s.sent, s.received, s.dropped, s.errors or 0))
+  print_(("sent %d, received %d, dropped %d, handler errors %d, held through lockdowns %d (%d waiting now)"):format(s.sent, s.received, s.dropped, s.errors or 0, s.queued or 0, #App.net.queue))
 end
 
 commands.sound = function()
