@@ -434,6 +434,15 @@ function App.onGameEvent(kind, info)
     App.uiRefresh()   -- the Options tab shows the newer version from now on
     return
   end
+  if kind == "joinLost" then
+    App.rejoin[info.gid] = nil
+    if not App.mirror.games[info.gid] then
+      local card = App.mirror.cards[info.gid]
+      print_(("could not join \"%s\": the host did not answer. Try again from the lobby."):format(Logic.escape(card and card.title or info.gid)))
+    end
+    App.uiRefresh()
+    return
+  end
   if kind == "callLost" then
     if info.gid == App.current then
       App.toast({ text = "The host did not answer", sub = "Your call was not recorded. Try again when they are back.", accent = "gold", ttl = 10 })
@@ -563,16 +572,20 @@ function App.tick()
       App.handed[gid] = nil
     end
   end
-  -- Silent rejoin after a reload: as soon as the card is heard, ask for the same board back.
+  -- Silent rejoin after a reload: as soon as the card is heard, ask for the
+  -- same board back. The entry stays until the welcome has made the game
+  -- ours again; the mirror asks again if none comes, and says joinLost when
+  -- it gives up.
   for gid in pairs(App.rejoin) do
     local card = App.mirror.cards[gid]
     if card and card.state == "closed" then
       -- it ended while we were away: nothing to rejoin
       App.rejoin[gid] = nil
       App.store:saveJoined(gid, nil)
-    elseif card and not App.mirror.games[gid] then
-      App.mirror:join(gid)
+    elseif App.mirror.games[gid] then
       App.rejoin[gid] = nil
+    elseif card and not App.mirror.joining[gid] then
+      App.mirror:join(gid)
       App.current = App.current or gid
       debug_("rejoining " .. gid)
     end

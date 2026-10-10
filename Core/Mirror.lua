@@ -33,6 +33,8 @@ Mirror.GAP_WAIT_MAX = 60     -- the back-off ceiling while the gap persists
                              -- about how long Chad lasts before opening the addon he said he would not install
 Mirror.SYNC_COOLDOWN = 10    -- seconds between sync requests per game
 Mirror.JOIN_WINDOW = 30      -- a WE is honoured only this long after our own JN
+Mirror.JOIN_RETRY = 5        -- seconds without a welcome before a join is asked again (doubling each time)
+Mirror.JOIN_TRIES = 3        -- asks in all before a join is given up
 Mirror.MAX_CARDS = 50        -- lobby cards kept
 Mirror.MAX_CARDS_PER_HOST = 3
 Mirror.MAX_ROSTER = 200      -- roster entries per game (the snapshot cap)
@@ -52,6 +54,7 @@ function Mirror.new(deps)
   self.cards = {}        -- gid -> card
   self.games = {}        -- gid -> game
   self.joining = {}      -- gid -> when we asked to join
+  self.joinTries = {}    -- gid -> how many times, for the retry backoff
   self.itemCache = {}    -- itemsHash -> { title, items } heard from a host before joining
   self.saidNewer = false
   self.nonce = 0          -- marks our latest HI; fresh on every hello
@@ -126,7 +129,7 @@ function Mirror:join(gid)
       return nil, ("This game needs DEA Bingo %s or newer; you have %s. Update to join."):format(card.minAddon, tostring(self.deps.addonVersion))
     end
   end
-  self.joining[gid] = self.deps.now()
+  self.joining[gid], self.joinTries[gid] = self.deps.now(), 1
   self:emit("JN", gid, { ver = Codec.PROTOCOL }, "WHISPER", card.host)
   return true
 end
@@ -321,6 +324,7 @@ function Mirror:handle(msg, sender)
     self.games[gid] = g
     g.owner, g.gen = sender, f.gen
     g.joined = true
+    self.joining[gid], self.joinTries[gid] = nil, nil
     g.myBoard = f.board
     g.createdAt = f.createdAt
     g.roster[self.deps.me] = { board = f.board, canCall = f.canCall, bingoAt = f.bingoAt }
@@ -513,6 +517,21 @@ function Mirror:tick()
     end
     for gid in pairs(self.joining) do self.joining[gid] = now end
     self.lockedAt = nil
+  end
+  -- A join without a welcome is asked again, a few times, then given up:
+  -- the request or the answer was lost, or the host is gone.
+  for gid, asked in pairs(self.joining) do
+    local tries = self.joinTries[gid] or 1
+    if now - asked >= Mirror.JOIN_RETRY * 2 ^ (tries - 1) then
+      local card = self.cards[gid]
+      if tries >= Mirror.JOIN_TRIES or not card or card.state ~= "open" then
+        self.joining[gid], self.joinTries[gid] = nil, nil
+        if self.deps.onEvent then self.deps.onEvent("joinLost", { gid = gid }) end
+      else
+        self.joining[gid], self.joinTries[gid] = now, tries + 1
+        self:emit("JN", gid, { ver = Codec.PROTOCOL }, "WHISPER", card.host)
+      end
+    end
   end
   local changed = false
   for gid, card in pairs(self.cards) do

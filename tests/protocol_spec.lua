@@ -342,6 +342,59 @@ describe("resilience", function()
     assert.are.equal(3, (function() local n = 0 for _ in pairs(h2.record.roster) do n = n + 1 end return n end)())
   end)
 
+  -- Tick the clock while dropping what `filter` rejects, as Hub:advance would without the filter.
+  local function advanceLossy(hub, seconds, filter)
+    for _ = 1, seconds do
+      hub.time = hub.time + 1
+      for _, c in pairs(hub.clients) do c.net:tick() end
+      hub:flush(filter)
+    end
+  end
+  local function countType(sent, t)
+    local n = 0
+    for _, m in ipairs(sent) do if m.payload:find("\31" .. t .. "\31", 1, true) then n = n + 1 end end
+    return n
+  end
+
+  it("asks to join again when the request was lost, and again when the welcome was", function()
+    local hub, host, _, names = guildNight(2)
+    local f = hub.clients[names[2]]
+    local gid = host.record.gid
+    local noJN = function(m) return not m.payload:find("\31JN\31", 1, true) end
+    assert(f.mirror:join(gid)); hub:flush(noJN)
+    assert.is_nil(f.mirror.games[gid])
+    advanceLossy(hub, Mirror.JOIN_RETRY - 1, noJN)
+    assert.are.equal(1, countType(f.sent, "JN"), "asked again too soon")
+    hub:advance(2)                                  -- the retry goes through
+    assert.are.equal(2, countType(f.sent, "JN"))
+    assert.is_truthy(f.mirror.games[gid] and f.mirror.games[gid].joined, "the retry did not get us in")
+    assert.is_nil(f.mirror.joining[gid])
+    -- the welcome is what gets lost
+    local third = hub:addClient("Third-Pagle", { guild = "DEA", group = "raid1" })
+    third.mirror:hello(); hub:flush()
+    local noWE = function(m) return not m.payload:find("\31WE\31", 1, true) end
+    assert(third.mirror:join(gid)); hub:flush(noWE)
+    assert.is_nil(third.mirror.games[gid])
+    hub:advance(Mirror.JOIN_RETRY + 1)
+    assert.is_truthy(third.mirror.games[gid] and third.mirror.games[gid].joined, "the lost welcome was never replaced")
+    assert.are.same(host.record.roster["Third-Pagle"].board, third.mirror.games[gid].myBoard)
+  end)
+
+  it("gives up joining after a few unanswered asks and says so", function()
+    local hub, host, _, names = guildNight(2)
+    local f = hub.clients[names[2]]
+    local gid = host.record.gid
+    local lost = {}
+    f.mirror.deps.onEvent = function(kind, info) if kind == "joinLost" then lost[#lost + 1] = info.gid end end
+    local noJN = function(m) return not m.payload:find("\31JN\31", 1, true) end
+    assert(f.mirror:join(gid)); hub:flush(noJN)
+    advanceLossy(hub, 120, noJN)
+    assert.are.equal(Mirror.JOIN_TRIES, countType(f.sent, "JN"))
+    assert.are.same({ gid }, lost)
+    assert.is_nil(f.mirror.joining[gid])
+    assert.is_nil(f.mirror.games[gid])
+  end)
+
   it("lets a follower rejoin with the same board after a reload", function()
     local hub, host, _, names = guildNight(2)
     joinAll(hub, host, names)
