@@ -162,4 +162,14 @@ describe("saved records", function()
     assert.is_false(Store.isPosition({ point = "CENTER", x = 0, y = 0, w = 10 }))
     assert.is_false(Store.isPosition("nope"))
   end)
+
+  it("accepts the chip's and the toast anchor's shapes, and refuses only a size that is no size", function()
+    assert.is_true(Store.isPosition({ point = "TOP", relPoint = "TOP", x = 0, y = -40, w = 230, h = 34 }))   -- the chip as dragging saved it
+    assert.is_true(Store.isPosition({ point = "TOP", relPoint = "TOP", x = 0, y = -120, w = 320, h = 1 })) -- the toast anchor strip
+    assert.is_true(Store.isPosition({ point = "TOP", relPoint = "TOP", x = 0, y = -40 }))                  -- anchoring alone
+    assert.is_false(Store.isPosition({ point = "TOP", x = 0, y = 0, w = 0, h = 34 }))
+    assert.is_false(Store.isPosition({ point = "TOP", x = 0, y = 0, w = 230, h = -1 }))
+    assert.is_false(Store.isPosition({ point = "TOP", x = 0, y = 0, w = 0 / 0, h = 34 }))
+    assert.is_false(Store.isPosition({ point = "TOP", x = 0, y = 0, w = math.huge, h = 34 }))
+  end)
 end)

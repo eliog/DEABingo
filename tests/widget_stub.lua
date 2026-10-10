@@ -40,7 +40,8 @@ local function newWidget(kind, name)
       elseif key == "GetFrameLevel" then return function(s) return s.__level or 1 end
       elseif key == "SetFrameLevel" then return function(s, v) s.__level = v end
       elseif key == "SetVerticalScroll" then return function(s, v) s.__scroll = v end
-      elseif key == "IsResizable" then return function() return true end
+      elseif key == "IsResizable" then return function(s) return s.__resizable == true end
+      elseif key == "SetResizable" then return function(s, v) s.__resizable = v == true end
       elseif key == "GetEffectiveScale" then return function() return 1 end
       elseif key == "SetScript" then return function(s, ev, fn) s.__scripts = s.__scripts or {}; s.__scripts[ev] = fn end
       elseif key == "GetScript" then return function(s, ev) return s.__scripts and s.__scripts[ev] end

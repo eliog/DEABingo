@@ -291,20 +291,27 @@ function W.draggable(frame, save)
     self:StopMovingOrSizing()
     if save then
       local point, _, relPoint, x, y = self:GetPoint(1)
-      save({ point = point, relPoint = relPoint, x = x, y = y, w = self:GetWidth(), h = self:GetHeight() })
+      local pos = { point = point, relPoint = relPoint, x = x, y = y }
+      -- only a frame the player can resize has a size worth keeping
+      if self:IsResizable() then pos.w, pos.h = self:GetWidth(), self:GetHeight() end
+      save(pos)
     end
   end)
 end
 
 -- A saved position is untrusted input: validated, and applied under pcall,
--- so a damaged options table can never stop the UI from loading.
+-- so a damaged options table can never stop the UI from loading. A saved
+-- size is applied to a resizable frame only, and never below default.minW
+-- by default.minH.
 function W.restorePosition(frame, pos, default)
   frame:ClearAllPoints()
   local Store = ns.Store
   if pos and Store and Store.isPosition(pos) then
     local okay = pcall(function()
       frame:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x, pos.y)
-      if pos.w and pos.h and frame:IsResizable() then frame:SetSize(pos.w, pos.h) end
+      if pos.w and pos.h and frame:IsResizable() then
+        frame:SetSize(math.max(default.minW or 1, pos.w), math.max(default.minH or 1, pos.h))
+      end
     end)
     if okay then return end
     frame:ClearAllPoints()

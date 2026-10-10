@@ -882,7 +882,7 @@ function Window.init(callbacks)
   Theme.register(win.shadow, "shadow", "bg")
   win.shadow:SetPoint("TOPLEFT", -1, 1); win.shadow:SetPoint("BOTTOMRIGHT", 3, -4)
   W.draggable(win, app.savePosition)
-  W.restorePosition(win, app.position(), { point = "CENTER" })
+  W.restorePosition(win, app.position(), { point = "CENTER", minW = Window.BOARD_MIN_W, minH = Window.BOARD_MIN_H })
   tinsert(UISpecialFrames, "DEABingoFrame")
 
   win.header = buildHeader(win)

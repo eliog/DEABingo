@@ -149,7 +149,13 @@ function Store.isPosition(pos)
   if type(pos) ~= "table" or not ANCHORS[pos.point] then return false end
   if pos.relPoint ~= nil and not ANCHORS[pos.relPoint] then return false end
   if type(pos.x) ~= "number" or type(pos.y) ~= "number" or pos.x ~= pos.x or pos.y ~= pos.y then return false end
-  if (pos.w ~= nil or pos.h ~= nil) and not (type(pos.w) == "number" and type(pos.h) == "number" and pos.w >= 100 and pos.h >= 100) then return false end
+  -- A size is saved for resizable frames only; the frame that restores it
+  -- holds it to its own minimum. The chip (230 x 34) and the toast anchor
+  -- (a 1px strip) anchor like any other frame and have no size to validate.
+  if pos.w ~= nil or pos.h ~= nil then
+    if type(pos.w) ~= "number" or type(pos.h) ~= "number" or pos.w ~= pos.w or pos.h ~= pos.h then return false end
+    if pos.w <= 0 or pos.h <= 0 or pos.w == math.huge or pos.h == math.huge then return false end
+  end
   return true
 end
 
