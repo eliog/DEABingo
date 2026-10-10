@@ -10,7 +10,10 @@ _G.secretValues = {}
 _G.issecretvalue = function(v) return secretValues[v] == true end
 _G.C_AddOns = { GetAddOnMetadata = function() return "@project-version@" end }
 _G.strlenutf8 = function(s) local _, n = s:gsub("[^\128-\191]", ""); return n end
-_G.GetTime = function() return 123.456 end
+local now = 123.456
+_G.GetTime = function() return now end
+local played = 0
+_G.PlaySound = function() played = played + 1 end
 local clock = 1700000000
 _G.GetServerTime = function() return clock end
 _G.date = function(fmt, t) return "Tuesday" end
@@ -248,6 +251,15 @@ for _, c in ipairs(clients) do
   assert(#App.pendingToasts <= App.MAX_PENDING_TOASTS, "toast queue not capped: " .. #App.pendingToasts)
   _G.UnitAffectingCombat = function() return false end
   App.flushToasts()
+  -- #57: a burst of calls ticks once; a bingo always sounds; the next tick comes after the gap
+  now = now + 1; played = 0
+  App.playSound("call"); App.playSound("call"); App.playSound("undo")
+  assert(played == 1, c.name .. ": burst of calls played " .. played .. " sounds")
+  App.playSound("bingo")
+  assert(played == 2, c.name .. ": bingo did not play in the burst")
+  now = now + 1
+  App.playSound("call")
+  assert(played == 3, c.name .. ": call after the gap did not play")
   -- history and options views, and the paste parser
   -- #22: start closing, switch tabs, let the timer fire: the lobby button keeps its label
   do

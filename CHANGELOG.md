@@ -14,6 +14,7 @@
 - In combat the window's header stays live: the close button and the title-bar drag work while the rest is dimmed (#54).
 - A text box that had the keyboard when combat started lets it go, so keys reach the game again (#55).
 - A confirmation card closes with the window (Escape, a reload) and when combat starts, instead of staying up with a stale action behind its button (#56).
+- Calls that land in a burst after a fight make one tick, not one per call; a bingo always sounds (#57).
 
 ## v0.1.3 (2026-10-09)
 

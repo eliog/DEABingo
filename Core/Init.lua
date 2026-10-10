@@ -231,12 +231,22 @@ function App.inCombat()
   return okay and v == true
 end
 
+-- Calls held through a fight land in a burst when it ends; one tick covers
+-- the lot rather than a drum roll. A bingo is its own moment and always plays.
+App.TICK_GAP = 0.5
+
 function App.playSound(kind)
   local o = App.store and App.store.db.options or {}
   if o.sounds == false then return end
   if o.quietInCombat ~= false and App.inCombat() then return end
   local id = SOUNDS[kind]
-  if id then pcall(PlaySound, id, "Master") end
+  if not id then return end
+  if kind ~= "bingo" then
+    local now = GetTime()
+    if App.lastTickSound and now - App.lastTickSound < App.TICK_GAP then return end
+    App.lastTickSound = now
+  end
+  pcall(PlaySound, id, "Master")
 end
 
 ------------------------------------------------------------- minimap button
