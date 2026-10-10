@@ -514,6 +514,8 @@ function App.setup()
     ns.Window.init(App.ui)
     ns.Chip.init(App.chipUi)
     ns.Chip.applyOptions(App.store.db.options)
+    -- a reload mid-fight builds the window after PLAYER_REGEN_DISABLED has passed
+    ns.Window.setCombat(App.inCombat())
     if ns.Toast then ns.Toast.init(App.toastUi) end
     App.setupMinimap()
     App.uiRefresh()

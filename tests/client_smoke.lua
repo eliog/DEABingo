@@ -94,7 +94,12 @@ do
   assert(alpha.ns.App.hosts.seeded1 == nil, "closed hosted game still attached")
   alpha.ns.App.current = nil
 end
+-- #53: a client that loads mid-fight (a /reload in combat) comes up dimmed
+_G.UnitAffectingCombat = function() return true end
 local beta = boot("Beta")
+assert(beta.ns.Window.frame().combatScrim and beta.ns.Window.frame().combatScrim.__shown, "window built in combat is not dimmed")
+_G.UnitAffectingCombat = function() return false end
+beta.ns.Window.setCombat(false)
 local clients = { alpha, beta }
 
 -- #52: a secret sender or roster name never reaches a string function, debug tap included
