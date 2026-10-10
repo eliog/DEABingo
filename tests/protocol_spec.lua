@@ -1061,6 +1061,32 @@ describe("hostile input", function()
     assert.are.equal("PARTY", channel)
   end)
 
+  it("judges nothing away or lost during a lockdown, and everything again after it", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner, follower = hub.clients[names[1]], hub.clients[names[2]]
+    local gid = host.record.gid
+    host:grant(names[2], true); hub:flush()
+    local events = {}
+    follower.mirror.deps.onEvent = function(kind) events[#events + 1] = kind end
+    -- the whole raid is in the encounter: host and caller alike
+    owner.locked, follower.locked = true, true
+    assert(follower.mirror:requestCall(gid, 3))
+    hub:advance(240)
+    assert.is_false(follower.mirror.cards[gid].away == true, "host judged away during the fight")
+    for _, k in ipairs(events) do assert.are_not.equal("callLost", k, "a held request was reported lost") end
+    assert.is_nil(host.record.calls[3], "the request got through the lockdown")
+    owner.locked, follower.locked = false, false
+    hub:advance(Host.SYNC_DELAY + 2)
+    assert.is_truthy(host.record.calls[3], "the held request did not land")
+    assert.is_truthy(follower.mirror.games[gid].calls[3])
+    for _, k in ipairs(events) do assert.are_not.equal("callLost", k) end
+    -- afterwards a host who really falls silent is judged away as before
+    owner.locked = true   -- the host alone: pulled again while we sit outside
+    hub:advance(Mirror.CARD_TTL + 2)
+    assert.is_true(follower.mirror.cards[gid].away)
+  end)
+
   it("caps what it holds, dropping the oldest", function()
     local hub, _, _, names = guildNight(1)
     local owner = hub.clients[names[1]]

@@ -11,6 +11,7 @@
     deps.onCards()                      optional, called when the lobby cards change
     deps.lookupItems(hash)              optional, returns a cached {title, items} for a hash
     deps.storeItems(hash, title, items) optional, called when a host's items are heard before joining
+    deps.inLockdown()                   optional: true while the client refuses addon messages (Forever encounters)
     deps.onEvent(kind, info)            optional: "call" {gid, idx, winners}, "undo" {gid, idx, revoked}, "join" {gid, name},
                                         "newGame" {gid, title, owner, state} the first time a host's card is heard
     deps.log(text)                      optional
@@ -463,6 +464,21 @@ end
 
 function Mirror:tick()
   local now = self.deps.now()
+  -- Silence during an encounter is the chat lockdown, not the host: nothing
+  -- is judged away or lost while it lasts, and every clock restarts when it
+  -- lifts, so the real timers run again after the fight.
+  if self.deps.inLockdown and self.deps.inLockdown() then
+    self.lockedAt = self.lockedAt or now
+    return
+  end
+  if self.lockedAt then
+    for _, card in pairs(self.cards) do card.seen = now end
+    for _, g in pairs(self.games) do
+      for _, req in pairs(g.outstanding or {}) do req.at = now end
+      if g.gapSince then g.gapSince = now end
+    end
+    self.lockedAt = nil
+  end
   local changed = false
   for gid, card in pairs(self.cards) do
     local away = (now - card.seen) > Mirror.CARD_TTL

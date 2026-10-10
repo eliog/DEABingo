@@ -477,6 +477,7 @@ function App.setup()
   })
   App.mirror = Mirror.new({
     now = GetServerTime, me = me, log = debug_, addonVersion = Compat.GetAddOnVersion(ADDON),
+    inLockdown = Compat.InChatLockdown,
     send = function(p, c, t) return App.net:send(p, c, t) end,
     channels = function() return App.net:channels() end,
     persist = function(gid, g) App.store:saveJoined(gid, g); App.uiRefresh() end,

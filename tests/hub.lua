@@ -69,6 +69,7 @@ function Hub:addClient(name, opts)
   client.net = Net.new(deps)
   client.mirror = Mirror.new({
     now = deps.now, me = deps.me, log = deps.log, addonVersion = deps.addonVersion,
+    inLockdown = deps.inLockdown,
     send = function(p, c, t) return client.net:send(p, c, t) end,
     channels = function() return client.net:channels() end,
     persist = function(gid, g) client.joined = client.joined or {}; client.joined[gid] = g end,
