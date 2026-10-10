@@ -7,6 +7,9 @@
 
 local stub = {}
 
+-- the one box holding the keyboard, as the client tracks it
+local focused
+
 local function newWidget(kind, name)
   local w = { __kind = kind, __name = name, __shown = true, __points = {}, __text = "", __children = {} }
   w.__w, w.__h = 300, 200
@@ -30,7 +33,9 @@ local function newWidget(kind, name)
       elseif key == "IsShown" or key == "IsVisible" then return function(s) return s.__shown end
       elseif key == "Show" then return function(s) s.__shown = true; if s.__scripts and s.__scripts.OnShow then s.__scripts.OnShow(s) end end
       elseif key == "Hide" then return function(s) s.__shown = false end
-      elseif key == "HasFocus" then return function() return false end
+      elseif key == "SetFocus" then return function(s) focused = s end
+      elseif key == "ClearFocus" then return function(s) if focused == s then focused = nil end end
+      elseif key == "HasFocus" then return function(s) return focused == s end
       elseif key == "GetVerticalScroll" then return function(s) return s.__scroll or 0 end
       elseif key == "GetFrameLevel" then return function(s) return s.__level or 1 end
       elseif key == "SetFrameLevel" then return function(s, v) s.__level = v end
@@ -81,6 +86,7 @@ function stub.install()
   _G.GetLocale = function() return "enUS" end
   _G.IsControlKeyDown = function() return false end
   _G.GetCursorPosition = function() return 500, 500 end
+  _G.GetCurrentKeyBoardFocus = function() return focused end
   _G.tinsert = table.insert
   _G.date = _G.date or function() return "Tuesday" end
 end

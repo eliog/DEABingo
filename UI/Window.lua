@@ -998,6 +998,22 @@ end
 function Window.isShown() return win and win:IsShown() end
 function Window.frame() return win end
 
+-- A focused text box keeps the keyboard through combat start; the scrim
+-- does not take it away. Release whichever of our boxes holds it, then the
+-- known boxes regardless, since GetCurrentKeyBoardFocus may be absent.
+local function dropFocus()
+  local okay, f = pcall(function() return GetCurrentKeyBoardFocus() end)
+  if okay and type(f) == "table" and f.ClearFocus then
+    local p = f
+    while p and p ~= win do p = p.GetParent and p:GetParent() end
+    if p == win then pcall(f.ClearFocus, f) end
+  end
+  local v = win.views
+  local boxes = { v.game.log.filter, v.setup.title, v.setup.pasteCard.card.edit }
+  for _, b in ipairs(v.setup.boxes) do boxes[#boxes + 1] = b.box end
+  for _, b in ipairs(boxes) do if b.ClearFocus then b:ClearFocus() end end
+end
+
 -- In combat the window dims and takes no clicks. EnableMouse(false) on a
 -- parent does not reach its children, so a mouse-enabled scrim does it.
 -- The scrim starts below the header: the close button and the title-bar
@@ -1005,6 +1021,7 @@ function Window.frame() return win end
 function Window.setCombat(inCombat)
   if not win then return end
   win:SetAlpha(inCombat and 0.4 or 1)
+  if inCombat then dropFocus() end
   if not win.combatScrim then
     local sc = CreateFrame("Button", nil, win)
     sc:SetPoint("TOPLEFT", win.header, "BOTTOMLEFT")
