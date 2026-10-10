@@ -1077,7 +1077,7 @@ end
 -------------------------------------------------------------------- events
 
 local frame = CreateFrame("Frame")
-for _, ev in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "GUILD_ROSTER_UPDATE", "CHAT_MSG_ADDON", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED" }) do
+for _, ev in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "GUILD_ROSTER_UPDATE", "CHAT_MSG_ADDON", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ADDON_RESTRICTION_STATE_CHANGED", "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED" }) do
   Compat.RegisterEvent(frame, ev)
 end
 frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
@@ -1127,6 +1127,12 @@ frame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
   elseif event == "PLAYER_REGEN_ENABLED" then
     if ns.Window then ns.Window.setCombat(false) end
     App.flushToasts()
+  elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
+    -- (type, state): state 0 is inactive, the client's own word that a
+    -- restriction ended. The queue drains at once instead of on the next
+    -- tick; the flush re-checks the lockdown, so any type is safe to act on.
+    local inactive = rawget(_G, "Enum") and Enum.AddOnRestrictionState and Enum.AddOnRestrictionState.Inactive or 0
+    if arg2 == inactive and App.net then App.net:flushQueue() end
   end
 end)
 

@@ -4,7 +4,8 @@
 local chat = {}
 _G.DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) chat[#chat+1] = m; print("  chat> " .. m:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end }
 _G.GetBuildInfo = function() return "1.60.1", "70245", "Oct 1 2026", 16001 end
-_G.C_ChatInfo = { InChatMessagingLockdown = function() return false end }
+_G.lockdown = false   -- flip to model the Forever chat lockdown
+_G.C_ChatInfo = { InChatMessagingLockdown = function() return _G.lockdown == true end }
 -- values the client would hand us as secrets during a lockdown; the stub marks them by identity
 _G.secretValues = {}
 _G.issecretvalue = function(v) return secretValues[v] == true end
@@ -197,6 +198,18 @@ do
   assert(alpha.ns.App.currentView().called[5], "old host did not see the new host's call")
 end
 run(beta, "undo 5")
+tickAll(1)
+-- #43/#51: a call made during a lockdown is held; the restriction event lets it out without a tick
+_G.lockdown = true
+run(beta, "call 9")
+assert(#beta.ns.App.net.queue == 1, "call not held during the lockdown")
+assert(not alpha.ns.App.currentView().called[8], "held call reached the follower")
+_G.lockdown = false
+beta.fire("ADDON_RESTRICTION_STATE_CHANGED", 5, 0)
+assert(#beta.ns.App.net.queue == 0, "the restriction event did not drain the queue")
+pump()
+assert(alpha.ns.App.currentView().called[8], "the released call did not reach the follower")
+run(beta, "undo 9")
 tickAll(1)
 -- UI exercise on both clients: window views, board, chip, setup validation, combat dim
 for _, c in ipairs(clients) do

@@ -16,6 +16,7 @@
 - A confirmation card closes with the window (Escape, a reload) and when combat starts, instead of staying up with a stale action behind its button (#56).
 - Calls that land in a burst after a fight make one tick, not one per call; a bingo always sounds (#57).
 - A send the client refuses for a lockdown that began after the check, or that the chat library had already spooled, goes back to the front of the queue; `/dea net` counts refusals and `/dea debug` shows the client's result code (#50).
+- The queue also drains the moment the client reports the restriction over, not only on the next tick (#51).
 
 ## v0.1.3 (2026-10-09)
 
