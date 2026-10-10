@@ -49,4 +49,7 @@ jobs:
       - name: busted
         run: busted
       - name: headless client smoke
-        run: lua tests/client_smoke.lua | tail -1
+        # pipefail: the step must fail on Lua's status, not pass on tail's
+        run: |
+          set -o pipefail
+          lua tests/client_smoke.lua | tail -1
