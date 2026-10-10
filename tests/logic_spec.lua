@@ -230,6 +230,36 @@ describe("text", function()
     assert.is_false(Logic.sameIdentity(nil, "Dea One"))
   end)
 
+  it("requires the local realm when authorizing a realm-qualified identity", function()
+    assert.is_true(Logic.sameIdentity("Thalgrim-Pagle", "Thalgrim", "Pagle"))
+    assert.is_true(Logic.sameIdentity("Thalgrim", "thalgrim-pagle", "Pagle"))
+    assert.is_true(Logic.sameIdentity("Thalgrim-Pagle", "thalgrim-PAGLE", "Pagle"))
+    assert.is_true(Logic.sameIdentity("Thalgrim-ClassicBetaPvE2", "Thalgrim", "Classic Beta PvE 2"))
+    assert.is_false(Logic.sameIdentity("Thalgrim-OtherRealm", "Thalgrim", "Pagle"))
+    assert.is_false(Logic.sameIdentity("Thalgrim-OtherRealm", "Thalgrim-Pagle", "Pagle"))
+    assert.is_false(Logic.sameIdentity("Thalgrim-Pagle", "Thalgrim-OtherRealm", "Pagle"))
+    assert.is_false(Logic.sameIdentity("Thalgrim-OtherRealm", "Thalgrim-OtherRealm", "Pagle"))
+    assert.is_false(Logic.sameIdentity("Thal grim-Pagle", "Thalgrim", "Pagle"))
+    assert.is_false(Logic.sameIdentity("Dea Two-Pagle", "Dea", "Pagle"))
+  end)
+
+  it("keeps saved-name tolerance within the local realm", function()
+    assert.is_true(Logic.sameCharacter("Dea One-Pagle", "Dea", "Pagle"))
+    assert.is_true(Logic.sameCharacter("Dea One", "Dea One-Pagle", "Pagle"))
+    assert.is_false(Logic.sameCharacter("Dea One-OtherRealm", "Dea", "Pagle"))
+    assert.is_false(Logic.sameCharacter("Dea One-OtherRealm", "Dea One-Pagle", "Pagle"))
+    -- Forever still migrates saved realm suffixes to its region-wide names.
+    assert.is_true(Logic.sameCharacter("Dea One-OldRealm", "Dea One"))
+    assert.is_true(Logic.sameIdentity("Dea One-OldRealm", "Dea One"))
+  end)
+
+  it("refuses realm-qualified identity checks when the local realm is unknown", function()
+    for _, unavailable in ipairs({ false, "", "  " }) do
+      assert.is_false(Logic.sameIdentity("Thalgrim-Pagle", "Thalgrim", unavailable))
+      assert.is_false(Logic.sameCharacter("Thalgrim-Pagle", "Thalgrim", unavailable))
+    end
+  end)
+
   it("escapes the pipe so chat and FontStrings cannot be hijacked", function()
     assert.are.equal("||cff00ff00fake||r", Logic.escape("|cff00ff00fake|r"))
     assert.are.equal("||Hitem:1||h[x]||h", Logic.escape("|Hitem:1|h[x]|h"))

@@ -50,14 +50,16 @@ package.path = "./?.lua;" .. package.path
 require("tests.widget_stub").install()
 local files = { "Core/Logic.lua", "Core/Codec.lua", "Core/Host.lua", "Core/Mirror.lua", "Core/Net.lua", "Core/Store.lua", "Core/View.lua", "Core/Presets.lua", "Core/Compat.lua", "Core/Quips.lua", "UI/Theme.lua", "UI/Widgets.lua", "UI/Board.lua", "UI/Window.lua", "UI/Chip.lua", "UI/Toast.lua", "Core/Init.lua" }
 
-local function boot(myName, seedDB)
+local function boot(myName, seedDB, opts)
+  opts = opts or {}
+  _G.RegionalUniqueNamesEnabled = function() return opts.realmless ~= false end
   local first = { Alpha = "Dea", Beta = "Dea" }
   local sur = { Alpha = "One", Beta = "Two" }
   local function who(unit) if unit == "player" then return myName end return ({ "Alpha", "Beta" })[tonumber(unit:match("%d+"))] end
   _G.UnitFullName = function(unit) local w = who(unit); return first[w], sur[w] end
   _G.UnitName = _G.UnitFullName
   _G.GetUnitName = function(unit, full) local w = who(unit); return first[w] .. " " .. sur[w] end
-  _G.DEABingoDB, _G.DEABingoCharDB = seedDB, nil
+  _G.DEABingoDB, _G.DEABingoCharDB = seedDB, opts.charDB
   _G.SlashCmdList = {}
   frames, handlers = {}, {}
   -- capture event frames created during load
@@ -87,6 +89,54 @@ local seeded = { hosted = { seeded1 = {
   createdAt = 1699999000, lastActivity = 1699999000, lastHeartbeat = 0, items = seedItems, itemsHash = "seed01", frozen = false,
   roster = { ["Dea One-ClassicBetaPvE2"] = { board = seededBoard, canCall = false, bingoAt = nil, joinedAt = 1699999000 } }, calls = {},
 } } }
+-- A saved identity and hosted game on another realm cannot become this
+-- character when realm-qualified names are enabled. The same-name replay
+-- must also leave live ownership and both identity stores untouched.
+do
+  local other = {}
+  for key, value in pairs(seeded.hosted.seeded1) do other[key] = value end
+  other.gid, other.owner = "other1", "Dea One-OtherRealm"
+  other.roster = { [other.owner] = { board = seededBoard, canCall = false } }
+  local c = boot("Alpha", { hosted = { other1 = other } }, {
+    realmless = false, charDB = { me = other.owner },
+  })
+  local app, codec = c.ns.App, c.ns.Codec
+  local mine = "Dea One-ClassicBetaPvE2"
+  assert(app.myName == mine and app.chardb.me == mine, "trusted another realm's saved identity")
+  assert(not app.hosts.other1, "resumed another realm's hosted game")
+  assert(app.store.db.hosted.other1.owner == other.owner, "rewrote another realm's saved ownership")
+  local record = assert(app.createGame({ title = "Realm identity", items = seedItems, audience = "G" }))
+  app.mirror:hello()
+  local hi = assert(codec.encode("HI", "0", { ver = codec.PROTOCOL, nonce = app.mirror.nonce, addon = "dev" }))
+  c.handler("DEABINGO", hi, "WHISPER", other.owner)
+  assert(app.myName == mine and app.chardb.me == mine, "replay replaced the saved or live identity")
+  assert(app.net.deps.me == mine and app.mirror.deps.me == mine, "replay replaced the network identity")
+  assert(record.owner == mine and record.roster[mine] and not record.roster[other.owner], "replay rewrote hosted ownership")
+
+  -- Matching case variants are legitimate echoes, and bare senders still
+  -- resolve to this realm before comparison. An unavailable realm is not
+  -- replaced by a guess from the incoming message.
+  local echoed = "dea one-classicbetapve2"
+  c.handler("DEABINGO", hi, "GUILD", echoed)
+  assert(app.myName == echoed and record.owner == echoed and record.roster[echoed], "rejected a same-realm echo")
+  c.handler("DEABINGO", hi, "GUILD", "Dea One")
+  assert(app.myName == "Dea One-classicbetapve2", "rejected a bare same-realm echo")
+  local before = app.myName
+  local realRealm = _G.GetNormalizedRealmName
+  _G.GetNormalizedRealmName = function() return nil end
+  c.handler("DEABINGO", hi, "WHISPER", other.owner)
+  assert(app.myName == before and app.chardb.me == before and record.owner == before, "learned an identity without a local realm")
+  _G.GetNormalizedRealmName = realRealm
+
+  -- A legitimate local saved game still restores, including an older
+  -- bare remembered identity that needs its local realm appended.
+  local resumed = boot("Alpha", seeded, { realmless = false, charDB = { me = "Dea One" } })
+  assert(resumed.ns.App.myName == mine and resumed.ns.App.chardb.me == mine, "did not qualify the remembered local identity")
+  assert(resumed.ns.App.normalize("Dea Two") == "Dea Two-ClassicBetaPvE2", "lost the local realm for bare names")
+  assert(resumed.ns.App.hosts.seeded1 and resumed.ns.App.hosts.seeded1.record.owner == mine, "did not restore a same-realm hosted game")
+  inbox = {}   -- discard isolated clients' broadcasts before the two-client smoke
+end
+
 local alpha = boot("Alpha", seeded)
 do
   local h = alpha.ns.App.hosts.seeded1

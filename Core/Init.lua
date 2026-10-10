@@ -50,6 +50,15 @@ function App.realmless()
   return App.isRealmless
 end
 
+-- Identity checks use the client's realm, never a suffix learned from a
+-- message or saved identity. nil means Forever; false means unknown.
+local function identityRealm()
+  if App.realmless() then return nil end
+  local localRealm = GetNormalizedRealmName()
+  if type(localRealm) ~= "string" or Compat.IsSecret(localRealm) or localRealm == "" then return false end
+  return localRealm
+end
+
 local function stripRealm(name)
   return (name:gsub("%-[^%-]+$", ""))
 end
@@ -61,15 +70,18 @@ function App.me()
   -- The name the server used for us last session beats any fresh guess,
   -- as long as it is still plausibly this character.
   local remembered = App.chardb and App.chardb.me
-  if type(remembered) == "string" and Logic.sameCharacter(remembered, name) then
-    App.myName = remembered
-    realm = remembered:match("%-([^%-]+)$") or realm
+  local localRealm = identityRealm()
+  if type(remembered) == "string" and Logic.sameCharacter(remembered, name, localRealm) then
+    local rememberedRealm = remembered:match("%-([^%-]+)$")
+    realm = rememberedRealm or localRealm or realm
+    App.myName = localRealm and not rememberedRealm and (remembered .. "-" .. localRealm) or remembered
+    App.chardb.me = App.myName
     return App.myName
   end
   if App.realmless() then
     App.myName = stripRealm(name)
   else
-    realm = realm or GetNormalizedRealmName()
+    realm = localRealm or nil
     if not realm then return nil end
     if name:find("-", 1, true) then App.myName = name else App.myName = name .. "-" .. realm end
   end
@@ -87,7 +99,7 @@ function App.learnMe(name)
   -- learned: exact, not merely similar. sameCharacter's tolerance for a
   -- missing surname is for our own saved records, not for this.
   local mine = displayName("player")
-  if not mine or not Logic.sameIdentity(name, mine) then
+  if not mine or not Logic.sameIdentity(name, mine, identityRealm()) then
     debug_(("refused to become %s (I am %s)"):format(tostring(name), tostring(mine)))
     return
   end
@@ -525,7 +537,9 @@ function App.setup()
   -- Open games resume; games closed within the recovery period come back
   -- silently, to answer followers that missed the end.
   App.store:forgetClosedHosted(GetServerTime() - Host.CLOSED_ANSWERS)
-  for _, record in ipairs(App.store:openHosted(me, Logic.sameCharacter, GetServerTime() - Host.CLOSED_ANSWERS)) do
+  local localRealm = identityRealm()
+  local function ownsRecord(owner, mine) return Logic.sameCharacter(owner, mine, localRealm) end
+  for _, record in ipairs(App.store:openHosted(me, ownsRecord, GetServerTime() - Host.CLOSED_ANSWERS)) do
     if record.owner ~= me then
       -- saved under an earlier form of our name: bring it in line
       local old = record.owner

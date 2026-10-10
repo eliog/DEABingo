@@ -307,16 +307,33 @@ function Logic.stripRealm(name)
   return (name:gsub("%-[^%-]+$", ""))
 end
 
--- Do two name strings refer to the same character? Realm-blind and
--- case-blind, and tolerant of a surname the client may or may not report:
+-- Without a local realm, names are region-wide identities (Forever).
+-- With one, bare names belong to that realm and explicit suffixes must
+-- match it. Spaces and case in a realm's display form are insignificant.
+local function sameRealm(a, b, localRealm)
+  if localRealm == nil then return true end
+  if type(localRealm) ~= "string" then return false end
+  local expected = localRealm:gsub("%s", ""):lower()
+  if expected == "" then return false end
+  local function belongs(name)
+    if type(name) ~= "string" then return false end
+    local suffix = name:match("%-([^%-]+)$")
+    return not suffix or suffix:gsub("%s", ""):lower() == expected
+  end
+  return belongs(a) and belongs(b)
+end
+
+-- Do two name strings refer to the same character? Case-blind and
+-- tolerant of a surname the client may or may not report:
 -- "Dea One-Realm" is the same character as "Dea One", "dea one" and "Dea".
--- Used to decide whether a name the server stamps on our own message may
--- replace what the client told us we are called.
+-- Used for our own saved records; it cannot authorize a new identity.
+-- Supply localRealm when names are realm-qualified.
 -- The tolerance is whole words only. The hello nonce is public, so a
 -- stranger can replay our hello under their own name; "Dea Onex", "Deanna"
 -- and "Chadwick" must not pass for "Dea One", "Dea" and "Chad".
 -- "Chad", "chad" and "Chad-Pagle" are the same person. Nobody has checked whether that is good news.
-function Logic.sameCharacter(a, b)
+function Logic.sameCharacter(a, b, localRealm)
+  if not sameRealm(a, b, localRealm) then return false end
   local na = Logic.normalizeCharName(Logic.stripRealm(a)):lower()
   local nb = Logic.normalizeCharName(Logic.stripRealm(b)):lower()
   if na == "" or nb == "" then return false end
@@ -328,13 +345,16 @@ function Logic.sameCharacter(a, b)
 end
 
 -- Is the name the server stamped on a message THIS character, beyond doubt?
--- Realm-blind and case-blind, nothing else: spaces stay ("Dea One" is not
+-- Case-blind, nothing else: spaces stay ("Dea One" is not
 -- "Deaone"), and a first name alone proves nothing ("Dea" is not "Dea Two",
 -- nor "Dea One"). This is the test for anything that may change who we are:
 -- the hello nonce is public, so a replayed hello arrives under a stranger's
 -- real name, and that name must be ours exactly or be refused. A client
 -- that only knows its first name learns nothing until it knows more.
-function Logic.sameIdentity(a, b)
+-- Supply localRealm for realm-qualified names; nil keeps Forever's rules.
+-- An unavailable realm must be passed as false, so no identity is learned.
+function Logic.sameIdentity(a, b, localRealm)
+  if not sameRealm(a, b, localRealm) then return false end
   local na = Logic.normalizeCharName(Logic.stripRealm(a)):lower()
   local nb = Logic.normalizeCharName(Logic.stripRealm(b)):lower()
   if na == "" or nb == "" then return false end
