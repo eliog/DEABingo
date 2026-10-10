@@ -1203,3 +1203,262 @@ describe("hostile input", function()
     assert.is_true(f.mirror.saidNewer)
   end)
 end)
+
+-- The lockdown queue in Core/Net.lua, beyond the first-cut cases above:
+-- ordering across types, a lockdown that comes back, whispers, the cap, the
+-- flush log, refusals during the flush, and the per-destination collapse.
+describe("lockdown queue", function()
+  local function wireTypes(client, from)
+    local out = {}
+    for i = from + 1, #client.sent do out[#out + 1] = client.sent[i].payload:match("^%d+\31(%u%u)") end
+    return out
+  end
+
+  it("lets mixed held types out in queue order, the kept heartbeat last and newest", function()
+    local hub, host, _, names = guildNight(3)
+    joinAll(hub, host, { names[1], names[2] })      -- player 3 joins during the fight
+    local owner, third = hub.clients[names[1]], hub.clients[names[3]]
+    local gid = host.record.gid
+    owner.locked = true
+    local sentBefore = #owner.sent
+    assert(third.mirror:join(gid)); hub:flush()     -- JD broadcast and WE whispered, both held
+    assert(host:call(1))
+    host:heartbeat()                                 -- stale by the next call
+    assert(host:call(2))
+    host:heartbeat()                                 -- replaces the one above, at the back
+    assert.are.equal(sentBefore, #owner.sent)
+    local held = {}
+    for _, m in ipairs(owner.net.queue) do held[#held + 1] = m.type end
+    assert.are.same({ "JD", "WE", "CL", "CL", "GA" }, held)
+    owner.locked = false
+    hub:advance(1)
+    assert.are.same({ "JD", "WE", "CL", "CL", "GA" }, wireTypes(owner, sentBefore))
+    local card = Codec.decode(owner.sent[#owner.sent].payload)
+    assert.are.equal(host.record.seq, card.f.seq, "the kept heartbeat is not the newest")
+    assert.is_true(Codec.maskHas(card.f.callMask, 1) and Codec.maskHas(card.f.callMask, 2), "the kept heartbeat predates a call")
+    assert.is_true(third.mirror.games[gid].joined, "the held welcome was not honoured")
+    assert.is_truthy(hub.clients[names[2]].mirror.games[gid].roster[names[3]])
+  end)
+
+  it("keeps everything when the lockdown comes back between ticks, and sends it all when it finally lifts", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner, follower = hub.clients[names[1]], hub.clients[names[2]]
+    local gid = host.record.gid
+    owner.locked = true
+    local sentBefore = #owner.sent
+    assert(host:call(1)); assert(host:call(2))
+    hub:advance(2)
+    owner.locked = false
+    owner.locked = true              -- lifted and back before any tick saw it
+    assert(host:call(3))             -- a send under the second lockdown joins the queue
+    hub:advance(3)
+    assert.are.equal(sentBefore, #owner.sent, "a held message left under the second lockdown")
+    assert.are.equal(3, #owner.net.queue)
+    assert.are.equal(0, owner.net.stats.dropped)
+    assert.is_nil(follower.mirror.games[gid].calls[1])
+    owner.locked = false
+    hub:advance(1)
+    assert.are.equal(0, #owner.net.queue)
+    local seqs = {}
+    for i = sentBefore + 1, #owner.sent do
+      local msg = Codec.decode(owner.sent[i].payload)
+      if msg.type == "CL" then seqs[#seqs + 1] = msg.f.seq end
+    end
+    assert.are.equal(3, #seqs)
+    assert.is_true(seqs[1] < seqs[2] and seqs[2] < seqs[3], "calls left out of order")
+    for idx = 1, 3 do assert.is_truthy(follower.mirror.games[gid].calls[idx]) end
+  end)
+
+  it("sends straight through when the client has no lockdown probe", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner, follower = hub.clients[names[1]], hub.clients[names[2]]
+    owner.net.deps.inLockdown = nil
+    owner.locked = true              -- would hold, if anyone asked
+    local sentBefore = #owner.sent
+    assert(host:call(1)); hub:flush()
+    assert.are.equal(sentBefore + 1, #owner.sent)
+    assert.are.equal(0, #owner.net.queue)
+    assert.are.equal(0, owner.net.stats.queued)
+    assert.is_truthy(follower.mirror.games[host.record.gid].calls[1])
+  end)
+
+  it("delivers a held whisper to its target after the lift, and nobody else", function()
+    local hub, host, _, names = guildNight(3)
+    joinAll(hub, host, names)
+    local owner, f2, f3 = hub.clients[names[1]], hub.clients[names[2]], hub.clients[names[3]]
+    local gid = host.record.gid
+    hub:advance(Host.SYNC_COOLDOWN)                  -- past the host's per-requester cooldown from the join
+    owner.locked = true
+    f2.mirror:requestSync(gid, true)
+    hub:advance(Host.SYNC_DELAY + 1)                 -- the host answers; the snapshot whisper is held
+    local held = owner.net.queue[#owner.net.queue]
+    assert.are.equal("SN", held.type)
+    assert.are.equal("WHISPER", held.channel)
+    assert.are.equal(names[2], held.target)
+    local before2, before3 = #f2.received, #f3.received
+    owner.locked = false
+    hub:advance(1)
+    assert.are.equal(before2 + 1, #f2.received)
+    local last = f2.received[#f2.received]
+    assert.are.equal("SN", last.payload:match("^%d+\31(%u%u)"))
+    assert.are.equal("WHISPER", last.channel)
+    assert.are.equal(before3, #f3.received, "a whisper reached someone else")
+  end)
+
+  it("drops a held whisper on arrival when its target left the guild and the group meanwhile", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner, follower = hub.clients[names[1]], hub.clients[names[2]]
+    local gid = host.record.gid
+    hub:advance(Host.SYNC_COOLDOWN)
+    owner.locked = true
+    follower.mirror:requestSync(gid, true)
+    hub:advance(Host.SYNC_DELAY + 1)
+    assert.are.equal("SN", owner.net.queue[#owner.net.queue].type)
+    follower.guild, follower.group = nil, nil        -- gquit and left the raid during the fight
+    local dropped, errors, seq = follower.net.stats.dropped, follower.net.stats.errors, follower.mirror.games[gid].seq
+    owner.locked = false
+    hub:advance(1)
+    assert.are.equal(0, #owner.net.queue)
+    assert.are.equal(dropped + 1, follower.net.stats.dropped, "the stranger's whisper was not dropped")
+    assert.are.equal(errors, follower.net.stats.errors)
+    assert.are.equal(seq, follower.mirror.games[gid].seq)
+  end)
+
+  it("logs how many held messages the lift let out, once", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner = hub.clients[names[1]]
+    owner.locked = true
+    assert(host:call(1)); assert(host:call(2)); assert(host:call(3))
+    hub:advance(2)
+    local function flushLines()
+      local n, last = 0, nil
+      for _, l in ipairs(hub.log) do
+        if l:find(names[1] .. ": lockdown over, sent ", 1, true) then n = n + 1; last = l end
+      end
+      return n, last
+    end
+    assert.are.equal(0, (flushLines()), "logged a flush while still locked")
+    owner.locked = false
+    hub:advance(3)
+    local n, last = flushLines()
+    assert.are.equal(1, n, "the empty ticks after the lift logged too")
+    assert.are.equal(names[1] .. ": lockdown over, sent 3 held messages", last)
+  end)
+
+  it("never sends the oldest five a full queue dropped, and sends nothing until the lift", function()
+    local hub, _, _, names = guildNight(1)
+    local owner = hub.clients[names[1]]
+    owner.locked = true
+    local sentBefore, statSent = #owner.sent, owner.net.stats.sent
+    for i = 1, Net.QUEUE_MAX + 5 do
+      owner.net:send(Codec.encode("SQ", "g" .. i, { haveSeq = 0 }), "WHISPER", "Someone-Pagle")
+    end
+    assert.are.equal(statSent, owner.net.stats.sent)
+    assert.are.equal(sentBefore, #owner.sent)
+    assert.are.equal(5, owner.net.stats.dropped)
+    owner.locked = false
+    hub:advance(1)
+    assert.are.equal(0, #owner.net.queue)
+    assert.are.equal(Net.QUEUE_MAX, #owner.sent - sentBefore)
+    assert.are.equal(statSent + Net.QUEUE_MAX, owner.net.stats.sent)
+    local gids = {}
+    for i = sentBefore + 1, #owner.sent do gids[owner.sent[i].payload:match("^%d+\31%u%u\31([^\31]*)")] = true end
+    for i = 1, 5 do assert.is_nil(gids["g" .. i], "dropped message g" .. i .. " reached the wire") end
+    assert.is_true(gids.g6 == true and gids["g" .. (Net.QUEUE_MAX + 5)] == true)
+  end)
+
+  it("re-holds a message refused during the flush and lets it out on the next one", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner, follower = hub.clients[names[1]], hub.clients[names[2]]
+    local gid = host.record.gid
+    owner.locked = true
+    assert(host:call(1)); assert(host:call(2))
+    -- the lockdown bit the first call on its way out, once
+    local refusals = 0
+    owner.refuse = function(payload)
+      local m = Codec.decode(payload)
+      if m and m.type == "CL" and m.f.idx == 1 and refusals == 0 then refusals = refusals + 1; return true end
+      return false
+    end
+    owner.locked = false
+    hub:advance(1)
+    assert.are.equal(1, owner.net.stats.refused)
+    assert.are.equal(1, #owner.net.queue, "the refused call was not re-held")
+    assert.is_true(owner.net.queue[1].requeued)
+    assert.are.equal(1, Codec.decode(owner.net.queue[1].payload).f.idx)
+    -- the call behind it left and waits, out of order, in the follower's pending buffer
+    local onWire = false
+    for _, m in ipairs(owner.sent) do local d = Codec.decode(m.payload); if d.type == "CL" and d.f.idx == 2 then onWire = true end end
+    assert.is_true(onWire, "the call behind the refused one did not leave")
+    assert.is_truthy(next(follower.mirror.games[gid].pending))
+    assert.is_nil(follower.mirror.games[gid].calls[1])
+    hub:advance(1)
+    assert.are.equal(0, #owner.net.queue)
+    assert.are.equal(1, owner.net.stats.refused)
+    assert.is_truthy(follower.mirror.games[gid].calls[1], "the re-held call never left")
+    assert.is_truthy(follower.mirror.games[gid].calls[2])
+  end)
+
+  it("gives up a message refused twice, counting both refusals; the follower recovers it by sync", function()
+    local hub, host, _, names = guildNight(2)
+    joinAll(hub, host, names)
+    local owner, follower = hub.clients[names[1]], hub.clients[names[2]]
+    local gid = host.record.gid
+    owner.locked = true
+    assert(host:call(1)); assert(host:call(2))
+    owner.refuse = function(payload) local m = Codec.decode(payload); return m and m.type == "CL" and m.f.idx == 1 end
+    owner.locked = false
+    hub:advance(1)
+    assert.are.equal(1, #owner.net.queue)
+    hub:advance(1)
+    assert.are.equal(2, owner.net.stats.refused)
+    assert.are.equal(0, #owner.net.queue, "a twice-refused message was held again")
+    assert.is_nil(follower.mirror.games[gid].calls[1])
+    -- the loss is final as far as the queue goes: not counted as dropped, not retried
+    local dropped = owner.net.stats.dropped
+    hub:advance(1)
+    assert.are.equal(0, #owner.net.queue)
+    assert.are.equal(dropped, owner.net.stats.dropped)
+    -- the gap it left is filled through the usual sync path once the library relents
+    owner.refuse = nil
+    hub:advance(Mirror.GAP_WAIT + Host.SYNC_DELAY + 2)
+    assert.is_truthy(follower.mirror.games[gid].calls[1])
+    assert.is_truthy(follower.mirror.games[gid].calls[2])
+  end)
+
+  it("collapses repeated hellos to one per channel, keeping the newest nonce", function()
+    local hub, _, _, names = guildNight(2)
+    local c = hub.clients[names[2]]
+    c.locked = true
+    c.mirror:hello(); c.mirror:hello(); c.mirror:hello()
+    local his, dists = {}, {}
+    for _, m in ipairs(c.net.queue) do if m.type == "HI" then his[#his + 1] = m; dists[m.dist] = true end end
+    assert.are.equal(2, #his)
+    assert.is_true(dists.GUILD == true and dists.RAID == true, "a channel's hello was evicted by the other's")
+    for _, m in ipairs(his) do assert.are.equal(c.mirror.nonce, Codec.decode(m.payload).f.nonce) end
+    c.locked = false
+    hub:advance(1)
+    assert.are.equal(0, #c.net.queue)
+  end)
+
+  it("keeps a sync request per host: requests for two games to two hosts both survive", function()
+    local hub, host, _, names = guildNight(3)
+    joinAll(hub, host, names)
+    local second = hub.clients[names[3]]:host({ title = "Second game", items = items(), audience = "G" })
+    assert(second:open()); hub:flush()
+    local f = hub.clients[names[2]]
+    assert(f.mirror:join(second.record.gid)); hub:flush(); hub:advance(Host.SYNC_DELAY + 1)
+    f.locked = true
+    f.mirror:requestSync(host.record.gid, true)
+    f.mirror:requestSync(second.record.gid, true)
+    f.mirror:requestSync(host.record.gid, true)
+    local targets = {}
+    for _, m in ipairs(f.net.queue) do if m.type == "SQ" then targets[m.target] = (targets[m.target] or 0) + 1 end end
+    assert.are.same({ [names[1]] = 1, [names[3]] = 1 }, targets)
+  end)
+end)
