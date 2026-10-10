@@ -312,15 +312,19 @@ end
 -- "Dea One-Realm" is the same character as "Dea One", "dea one" and "Dea".
 -- Used to decide whether a name the server stamps on our own message may
 -- replace what the client told us we are called.
+-- The tolerance is whole words only. The hello nonce is public, so a
+-- stranger can replay our hello under their own name; "Dea Onex", "Deanna"
+-- and "Chadwick" must not pass for "Dea One", "Dea" and "Chad".
 -- "Chad", "chad" and "Chad-Pagle" are the same person. Nobody has checked whether that is good news.
 function Logic.sameCharacter(a, b)
-  local ka = Logic.charNameKey(Logic.stripRealm(a))
-  local kb = Logic.charNameKey(Logic.stripRealm(b))
-  if ka == "" or kb == "" then return false end
-  if ka == kb then return true end
-  local short, long = ka, kb
+  local na = Logic.normalizeCharName(Logic.stripRealm(a)):lower()
+  local nb = Logic.normalizeCharName(Logic.stripRealm(b)):lower()
+  if na == "" or nb == "" then return false end
+  if na:gsub(" ", "") == nb:gsub(" ", "") then return true end
+  -- the client may report only the first name of a two-word name
+  local short, long = na, nb
   if #short > #long then short, long = long, short end
-  return long:sub(1, #short) == short
+  return long:sub(1, #short) == short and long:sub(#short + 1, #short + 1) == " "
 end
 
 -- Addon versions: "v0.1.1", "0.1.1-beta1". A development build ("dev",

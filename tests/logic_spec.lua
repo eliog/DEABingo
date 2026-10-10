@@ -192,6 +192,25 @@ describe("text", function()
     assert.is_false(Logic.sameCharacter(nil, "Dea One"))
   end)
 
+  it("does not mistake a name that merely extends ours for the same character", function()
+    -- a surname that is a longer word
+    assert.is_false(Logic.sameCharacter("Dea One", "Dea Onex"))
+    assert.is_false(Logic.sameCharacter("Dea One-Two", "Dea Oneida-Two"))
+    -- single names: a prefix is a different person
+    assert.is_false(Logic.sameCharacter("Chad", "Chadwick"))
+    assert.is_false(Logic.sameCharacter("Chadwick-Pagle", "Chad"))
+    assert.is_false(Logic.sameCharacter("Thalgrim", "Thal"))
+    -- a single letter is nobody's name
+    assert.is_false(Logic.sameCharacter("D", "Dea One"))
+    assert.is_false(Logic.sameCharacter("Dea One", "D"))
+    -- a different first name with the same surname start
+    assert.is_false(Logic.sameCharacter("Deal One", "Dea One"))
+    -- the first-name-only client still matches its own full name, and only that
+    assert.is_true(Logic.sameCharacter("Dea", "Dea One-Two"))
+    assert.is_false(Logic.sameCharacter("De", "Dea One-Two"))
+    assert.is_false(Logic.sameCharacter("Dea", "Deanna One"))
+  end)
+
   it("escapes the pipe so chat and FontStrings cannot be hijacked", function()
     assert.are.equal("||cff00ff00fake||r", Logic.escape("|cff00ff00fake|r"))
     assert.are.equal("||Hitem:1||h[x]||h", Logic.escape("|Hitem:1|h[x]|h"))
